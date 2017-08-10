@@ -29,7 +29,7 @@ lazy val scalaSettings = Seq(
   scalaSource in Test    := baseDirectory.value / "src" / "test",
   crossPaths             := false, // don't cross-build for different Scala versions
   scalacOptions ++=
-    "-deprecation -unchecked -feature -Xcheckinit -encoding us-ascii -target:jvm-1.8 -opt:l:method -Xlint -Xfatal-warnings"
+    "-deprecation -unchecked -feature -Xcheckinit -encoding us-ascii -target:jvm-1.8 -opt:l:method -Xlint" // -Xfatal-warnings"
       .split(" ").toSeq,
   // we set doc options until https://github.com/scala/bug/issues/10402 is fixed
   scalacOptions in Compile in doc --= "-Xlint -Xfatal-warnings".split(" ").toSeq
@@ -304,7 +304,9 @@ lazy val parser = CrossProject("parser", file("."),
   jvmConfigure(_.dependsOn(sharedResources)).
   jvmSettings(jvmSettings: _*).
   jvmSettings(scalatestSettings: _*).
+  jvmSettings(XmlReaderGenerator.settings: _*).
   jvmSettings(
+      autogenRoot     := baseDirectory.value.getParentFile / "autogen",
       mappings in (Compile, packageBin) ++= mappings.in(sharedResources, Compile, packageBin).value,
       mappings in (Compile, packageSrc) ++= mappings.in(sharedResources, Compile, packageSrc).value,
       libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.0.5",

@@ -19,6 +19,10 @@ trait Attribute {
   def values: Seq[String]
 }
 
+trait ElementFactory {
+  def newElement(tag: String): ElementBuilder
+}
+
 trait ElementBuilder {
   def withAttribute(name: String, value: String): ElementBuilder
   def withElement(element: Element): ElementBuilder

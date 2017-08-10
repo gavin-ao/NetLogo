@@ -1,0 +1,537 @@
+<?xml version="1.0"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:svg="http://www.w3.org/2000/svg" >
+
+  <xsd:element name="NetLogoFile">
+    <xsd:complexType>
+      <xsd:sequence>
+        <xsd:element name="code" type="CodeSection" />
+        <xsd:element name="info" type="xsd:string" />
+        <xsd:element name="widgets" type="WidgetList" />
+        <xsd:element name="shapes">
+          <xsd:complexType>
+            <xsd:sequence>
+              <xsd:element name="turtleShape" type="TurtleShape" maxOccurs="unbounded" />
+              <xsd:element name="linkShape" type="LinkShape" maxOccurs="unbounded" />
+            </xsd:sequence>
+          </xsd:complexType>
+        </xsd:element>
+      </xsd:sequence>
+    </xsd:complexType>
+  </xsd:element>
+
+  <xsd:complexType name="WidgetList">
+    <xsd:sequence>
+      <xsd:choice maxOccurs="unbounded">
+        <xsd:element name="button"  type="button" />
+        <xsd:element name="chooser" type="chooser" />
+        <xsd:element name="numericInput" type="numericInput" />
+        <xsd:element name="stringInput" type="stringInput" />
+        <xsd:element name="monitor" type="monitor" />
+        <xsd:element name="output"  type="output" />
+        <xsd:element name="plot"    type="PlotWidget" />
+        <xsd:element name="slider"  type="slider" />
+        <xsd:element name="switch"  type="switch" />
+        <xsd:element name="textbox" type="textbox" />
+        <xsd:element name="view"    type="view" />
+      </xsd:choice>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="dimensions">
+    <xsd:annotation>
+      <xsd:appinfo className="WorldDimensions" />
+    </xsd:annotation>
+    <xsd:attribute name="patchSize" type="xsd:double" use="required" />
+    <xsd:attribute name="wrapInX" type="xsd:boolean" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="wrappingAllowedInX" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="wrapInY" type="xsd:boolean" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="wrappingAllowedInY" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="minPxcor" type="xsd:integer" use="required" />
+    <xsd:attribute name="maxPxcor" type="xsd:integer" use="required" />
+    <xsd:attribute name="minPycor" type="xsd:integer" use="required" />
+    <xsd:attribute name="maxPycor" type="xsd:integer" use="required" />
+  </xsd:complexType>
+
+  <xsd:complexType name="view">
+    <xsd:annotation>
+      <xsd:appinfo className="View" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element ref="dimensions" minOccurs="1" maxOccurs="1" />
+      <xsd:element name="tickCounterLabel" type="xsd:string" minOccurs="0" maxOccurs="1" />
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+    <xsd:attribute name="fontSize" type="xsd:positiveInteger" use="required" />
+    <xsd:attribute name="updateMode" default="tick-based" use="required" >
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:string">
+          <xsd:annotation>
+            <xsd:appinfo className="UpdateMode" />
+          </xsd:annotation>
+          <xsd:enumeration value="continuous">
+            <xsd:annotation>
+              <xsd:appinfo className="UpdateMode.Continuous" />
+            </xsd:annotation>
+          </xsd:enumeration>
+          <xsd:enumeration value="tick-based">
+            <xsd:annotation>
+              <xsd:appinfo className="UpdateMode.TickBased" />
+            </xsd:annotation>
+          </xsd:enumeration>
+        </xsd:restriction>
+      </xsd:simpleType>
+    </xsd:attribute>
+    <xsd:attribute name="showTickCounter" type="xsd:boolean" use="required" />
+    <xsd:attribute name="frameRate" type="xsd:double" use="required" />
+  </xsd:complexType>
+
+  <xsd:complexType name="slider">
+    <xsd:annotation>
+      <xsd:appinfo className="Slider" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="maximum" type="xsd:string" minOccurs="1">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="max" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="minimum" type="xsd:string" minOccurs="1">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="min" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="step"    type="xsd:string" minOccurs="1"/>
+      <xsd:element name="units"   type="xsd:string" minOccurs="0" maxOccurs="1" />
+      <xsd:element name="variable" type="xsd:string" minOccurs="0">
+        <xsd:annotation>
+          <xsd:appinfo additionalField="display" />
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+    <xsd:attribute name="default" type="xsd:double" use="required" />
+    <xsd:attribute name="direction" use="required" >
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:string">
+          <xsd:annotation>
+            <xsd:appinfo className="Direction" />
+          </xsd:annotation>
+          <xsd:enumeration value="horizontal">
+            <xsd:annotation>
+              <xsd:appinfo className="Horizontal" />
+            </xsd:annotation>
+          </xsd:enumeration>
+          <xsd:enumeration value="vertical">
+            <xsd:annotation>
+              <xsd:appinfo className="Vertical" />
+            </xsd:annotation>
+          </xsd:enumeration>
+        </xsd:restriction>
+      </xsd:simpleType>
+    </xsd:attribute>
+  </xsd:complexType>
+
+  <xsd:complexType name="stringInput">
+    <xsd:annotation>
+      <xsd:appinfo className="InputBox" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="variable" type="xsd:string" minOccurs="0" maxOccurs="1" />
+      <xsd:element ref="stringData">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="boxedValue" />
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+  </xsd:complexType>
+
+  <xsd:complexType name="stringData" >
+    <xsd:annotation>
+      <xsd:appinfo className="StringInput" />
+    </xsd:annotation>
+    <xsd:simpleContent>
+      <xsd:extension base="xsd:string">
+        <xsd:attribute name="multiline" type="xsd:boolean" use="required" />
+        <xsd:attribute name="kind" use="required" >
+          <xsd:annotation>
+            <xsd:appinfo fieldName="label" />
+          </xsd:annotation>
+          <xsd:simpleType>
+            <xsd:restriction base="xsd:string">
+              <xsd:annotation>
+                <xsd:appinfo className="StringInput.StringKind" />
+              </xsd:annotation>
+              <xsd:enumeration value="string">
+                <xsd:annotation>
+                  <xsd:appinfo className="StringInput.StringLabel" />
+                </xsd:annotation>
+              </xsd:enumeration>
+              <xsd:enumeration value="reporter">
+                <xsd:annotation>
+                  <xsd:appinfo className="StringInput.ReporterLabel" />
+                </xsd:annotation>
+              </xsd:enumeration>
+              <xsd:enumeration value="command">
+                <xsd:annotation>
+                  <xsd:appinfo className="StringInput.CommandLabel" />
+                </xsd:annotation>
+              </xsd:enumeration>
+            </xsd:restriction>
+          </xsd:simpleType>
+        </xsd:attribute>
+      </xsd:extension>
+    </xsd:simpleContent>
+  </xsd:complexType>
+
+  <xsd:complexType name="numericData" >
+    <xsd:annotation>
+      <xsd:appinfo className="NumericInput" />
+    </xsd:annotation>
+    <xsd:simpleContent>
+      <xsd:extension base="xsd:double">
+        <xsd:attribute name="kind" use="required" >
+          <xsd:annotation>
+            <xsd:appinfo fieldName="label" />
+          </xsd:annotation>
+          <xsd:simpleType>
+            <xsd:restriction base="xsd:string">
+              <xsd:annotation>
+                <xsd:appinfo className="NumericInput.NumericKind" />
+              </xsd:annotation>
+              <xsd:enumeration value="number">
+                <xsd:annotation>
+                  <xsd:appinfo className="NumericInput.NumberLabel" />
+                </xsd:annotation>
+              </xsd:enumeration>
+              <xsd:enumeration value="color">
+                <xsd:annotation>
+                  <xsd:appinfo className="NumericInput.ColorLabel" />
+                </xsd:annotation>
+              </xsd:enumeration>
+            </xsd:restriction>
+          </xsd:simpleType>
+        </xsd:attribute>
+      </xsd:extension>
+    </xsd:simpleContent>
+  </xsd:complexType>
+
+  <xsd:complexType name="numericInput">
+    <xsd:annotation>
+      <xsd:appinfo className="InputBox" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="variable" type="xsd:string" minOccurs="0" maxOccurs="1" />
+      <xsd:element ref="numericData">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="boxedValue" />
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+  </xsd:complexType>
+
+  <xsd:complexType name="button">
+    <xsd:annotation>
+      <xsd:appinfo className="Button" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="source" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+      <xsd:element name="display" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+    <xsd:attribute name="forever" type="xsd:boolean" use="required" />
+    <xsd:attribute name="ticksEnabled" type="xsd:boolean" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="disableUntilTicksStart" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="agentKind" default="observer" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="buttonKind" />
+      </xsd:annotation>
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:string">
+          <xsd:annotation>
+            <xsd:appinfo className="AgentKind" />
+          </xsd:annotation>
+          <xsd:enumeration value="observer">
+            <xsd:annotation>
+              <xsd:appinfo className="AgentKind.Observer" />
+            </xsd:annotation>
+          </xsd:enumeration>
+          <xsd:enumeration value="turtle">
+            <xsd:annotation>
+              <xsd:appinfo className="AgentKind.Turtle" />
+            </xsd:annotation>
+          </xsd:enumeration>
+          <xsd:enumeration value="patch">
+            <xsd:annotation>
+              <xsd:appinfo className="AgentKind.Patch" />
+            </xsd:annotation>
+          </xsd:enumeration>
+          <xsd:enumeration value="link">
+            <xsd:annotation>
+              <xsd:appinfo className="AgentKind.Link" />
+            </xsd:annotation>
+          </xsd:enumeration>
+        </xsd:restriction>
+      </xsd:simpleType>
+    </xsd:attribute>
+    <xsd:attribute name="actionKey">
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:string">
+          <xsd:maxLength value="1"/>
+        </xsd:restriction>
+      </xsd:simpleType>
+    </xsd:attribute>
+  </xsd:complexType>
+
+  <xsd:complexType name="chooser">
+    <xsd:annotation>
+      <xsd:appinfo className="Chooser" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="variable" type="xsd:string" minOccurs="0" maxOccurs="1">
+        <xsd:annotation>
+          <xsd:appinfo additionalField="display" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="choices" type="choices" />
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+    <xsd:attribute name="currentChoice" type="xsd:nonNegativeInteger" use="required" />
+  </xsd:complexType>
+
+  <xsd:complexType name="choices">
+    <xsd:annotation>
+      <xsd:appinfo passThrough="true" className="List[Chooseable]" />
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:choice>
+        <xsd:annotation>
+          <xsd:appinfo fieldName="value" className="Chooseable" />
+        </xsd:annotation>
+        <xsd:element ref="listChoice" />
+        <xsd:element name="numberChoice" type="xsd:double">
+          <xsd:annotation>
+            <xsd:appinfo boxed="true" />
+          </xsd:annotation>
+        </xsd:element>
+        <xsd:element name="stringChoice" type="xsd:string" />
+        <xsd:element name="booleanChoice" type="xsd:boolean">
+          <xsd:annotation>
+            <xsd:appinfo boxed="true" />
+          </xsd:annotation>
+        </xsd:element>
+      </xsd:choice>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="listChoice">
+    <xsd:annotation>
+      <xsd:appinfo className="LogoList" />
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:annotation>
+        <xsd:appinfo variadic="true" fieldName="objs" />
+      </xsd:annotation>
+      <xsd:choice minOccurs="0" maxOccurs="unbounded" >
+        <xsd:annotation>
+          <xsd:appinfo passThrough="true" fieldName="value" className="AnyRef" />
+        </xsd:annotation>
+        <xsd:element name="numberChoice" type="xsd:double">
+          <xsd:annotation>
+            <xsd:appinfo boxed="true" />
+          </xsd:annotation>
+        </xsd:element>
+        <xsd:element name="stringChoice" type="xsd:string" />
+        <xsd:element name="booleanChoice" type="xsd:boolean">
+          <xsd:annotation>
+            <xsd:appinfo boxed="true" />
+          </xsd:annotation>
+        </xsd:element>
+        <xsd:element ref="listChoice" />
+      </xsd:choice>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="output">
+    <xsd:annotation>
+      <xsd:appinfo className="Output" />
+    </xsd:annotation>
+    <xsd:attributeGroup ref="Positioned" />
+    <xsd:attributeGroup ref="FontSized" />
+  </xsd:complexType>
+
+  <xsd:complexType name="plot">
+    <xsd:annotation>
+      <xsd:appinfo className="Plot" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="display" type="xsd:string" minOccurs="0" maxOccurs="1" />
+      <xsd:element name="xAxis"   type="xsd:string" minOccurs="0" maxOccurs="1" />
+      <xsd:element name="yAxis"   type="xsd:string" minOccurs="0" maxOccurs="1" />
+      <xsd:element name="setup"   type="xsd:string" minOccurs="1">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="setupCode" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="update"  type="xsd:string" minOccurs="1">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="updateCode" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="pens" minOccurs="1">
+        <xsd:complexType>
+          <xsd:annotation>
+            <xsd:appinfo className="List[Pen]" />
+          </xsd:annotation>
+          <xsd:sequence>
+            <xsd:element ref="pen" minOccurs="0" maxOccurs="unbounded" />
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:all>
+    <xsd:attribute name="autoPlotOn" type="xsd:boolean" use="required" />
+    <xsd:attribute name="legendOn" type="xsd:boolean" use="required" />
+    <xsd:attribute name="xmin" type="xsd:double" use="required" />
+    <xsd:attribute name="xmax" type="xsd:double" use="required" />
+    <xsd:attribute name="ymin" type="xsd:double" use="required" />
+    <xsd:attribute name="ymax" type="xsd:double" use="required" />
+    <xsd:attributeGroup ref="Positioned" />
+  </xsd:complexType>
+
+  <xsd:complexType name="pen">
+    <xsd:all>
+      <xsd:element name="setup" type="xsd:string" minOccurs="1">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="setupCode" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="update" type="xsd:string" minOccurs="1" >
+        <xsd:annotation>
+          <xsd:appinfo fieldName="updateCode" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="display" type="xsd:string" minOccurs="1" />
+    </xsd:all>
+    <xsd:attribute name="interval" type="xsd:double" use="required" />
+    <xsd:attribute name="mode" use="required" >
+      <xsd:simpleType>
+        <xsd:restriction base="xsd:nonNegativeInteger">
+          <xsd:annotation>
+            <xsd:appinfo className="Int" />
+          </xsd:annotation>
+          <xsd:enumeration value="0" />
+          <xsd:enumeration value="1" />
+          <xsd:enumeration value="2" />
+        </xsd:restriction>
+      </xsd:simpleType>
+    </xsd:attribute>
+    <xsd:attribute name="color" type="xsd:positiveInteger" use="required" />
+    <xsd:attribute name="inLegend" type="xsd:boolean" use="required" />
+  </xsd:complexType>
+
+  <xsd:complexType name="switch">
+    <xsd:annotation>
+      <xsd:appinfo className="Switch" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="variable" type="xsd:string" minOccurs="0" maxOccurs="1">
+        <xsd:annotation>
+          <xsd:appinfo additionalField="display" />
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+    <xsd:attribute name="isOn" type="xsd:boolean" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="on" />
+      </xsd:annotation>
+    </xsd:attribute>
+  </xsd:complexType>
+
+  <xsd:complexType name="monitor">
+    <xsd:annotation>
+      <xsd:appinfo className="Monitor" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="source" type="xsd:string" minOccurs="0" maxOccurs="1" />
+      <xsd:element name="display" type="xsd:string" minOccurs="0" maxOccurs="1" />
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned" />
+    <xsd:attributeGroup ref="FontSized" />
+    <xsd:attribute name="precision" type="xsd:nonNegativeInteger" use="required" />
+  </xsd:complexType>
+
+  <xsd:complexType name="textbox">
+    <xsd:annotation>
+      <xsd:appinfo className="TextBox" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="display" type="xsd:string" minOccurs="0" maxOccurs="1"/>
+    </xsd:all>
+    <xsd:attributeGroup ref="Positioned"/>
+    <xsd:attributeGroup ref="FontSized" />
+    <xsd:attribute name="color" type="svg:ColorType" use="required" />
+    <xsd:attribute name="transparent" type="xsd:boolean" use="required" />
+  </xsd:complexType>
+
+  <xsd:complexType name="TurtleShape">
+    <xsd:sequence>
+      <xsd:element name="svg">
+        <xsd:complexType>
+          <xsd:sequence>
+            <xsd:choice>
+              <xsd:element name="polygon"   type="svg:polygonType" />
+              <xsd:element name="circle"    type="svg:circleType"  />
+              <xsd:element name="line"      type="svg:lineType" />
+              <xsd:element name="rectangle" type="svg:rectType" />
+            </xsd:choice>
+          </xsd:sequence>
+        </xsd:complexType>
+      </xsd:element>
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required" />
+    <xsd:attribute name="rotatable" type="xsd:boolean" use="required" />
+    <xsd:attribute name="editableColorIndex" type="xsd:integer" />
+  </xsd:complexType>
+
+  <xsd:complexType name="LinkShape">
+    <xsd:sequence>
+      <xsd:element name="linkLine" minOccurs="3" maxOccurs="3">
+        <xsd:complexType>
+          <xsd:attribute name="offset" type="xsd:float" use="required"/>
+          <xsd:attribute name="isVisible" type="xsd:boolean" use="required" />
+          <xsd:attribute name="stroke-dasharray" type="svg:StrokeDashArrayValueType" use="required"/>
+        </xsd:complexType>
+      </xsd:element>
+      <xsd:element name="indicator" maxOccurs="1" type="TurtleShape" />
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:attributeGroup name="Positioned">
+    <xsd:attribute name="left" type="xsd:nonNegativeInteger" use="required" />
+    <xsd:attribute name="top" type="xsd:nonNegativeInteger" use="required" />
+    <xsd:attribute name="right" type="xsd:nonNegativeInteger" use="required" />
+    <xsd:attribute name="bottom" type="xsd:nonNegativeInteger" use="required" />
+  </xsd:attributeGroup>
+
+  <xsd:attributeGroup name="FontSized">
+    <xsd:attribute name="fontSize" type="xsd:positiveInteger" use="required" />
+  </xsd:attributeGroup>
+
+  <xsd:complexType name="CodeSection" >
+    <xsd:simpleContent>
+      <xsd:extension base="xsd:string" />
+    </xsd:simpleContent>
+  </xsd:complexType>
+</xsd:schema>

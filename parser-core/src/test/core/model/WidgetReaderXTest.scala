@@ -4,13 +4,13 @@ package org.nlogo.core.model
 
 import org.nlogo.core.{ AgentKind, Button, Chooser,
   ChooseableBoolean, ChooseableDouble, ChooseableList, ChooseableString,
-  Horizontal, InputBox, LogoList, Monitor, Output, Slider, StringInput, Switch,
-  TextBox, UpdateMode, View,
-  WorldDimensions, Widget }
+  Horizontal, InputBox, LogoList, Monitor, NumericInput, Output, Pen, Plot, Slider,
+  StringInput, Switch, TextBox, UpdateMode, View, WorldDimensions, Widget }
 
 import org.scalatest.FunSuite
 
-import WidgetReaderX._
+import
+  cats.data.Validated.Invalid
 
 class WidgetReaderXTest extends FunSuite {
   case class Elem(tag: String, attributes: Seq[Attribute], children: Seq[Node]) extends Element
@@ -19,6 +19,28 @@ class WidgetReaderXTest extends FunSuite {
     def apply(name: String, value: String) = new Attr(name, Seq(value))
   }
   case class Attr(name: String, values: Seq[String]) extends Attribute
+
+  object Factory extends ElementFactory {
+    def newElement(tag: String): ElementBuilder = new Builder(tag)
+  }
+
+  class Builder(tag: String) extends ElementBuilder {
+    var attributes = Seq.empty[Attr]
+    var children = Seq.empty[Node]
+    def withAttribute(name: String, value: String) = {
+      attributes :+= Attr(name, value)
+      this
+    }
+    def withElement(element: Element): ElementBuilder = {
+      children :+= element
+      this
+    }
+    def withText(txt: String): ElementBuilder = {
+      children :+= Txt(txt)
+      this
+    }
+    def build = Elem(tag, attributes, children)
+  }
 
   val dimensions =
     Seq(Attr("left", "150"),
@@ -30,13 +52,63 @@ class WidgetReaderXTest extends FunSuite {
   val color = Attr("color", "#000000")
 
   def readToWidget(xml: Element): Widget =
-    WidgetReaderX.read(xml).toOption.get
+    WidgetXml.read(xml).toOption.get
 
   def readToError(xml: Element): ParseError =
-    WidgetReaderX.read(xml).swap.toOption.get
+    WidgetXml.read(xml).swap.toOption.get
+
+  def writeToXml(w: Widget): Element =
+    WidgetXml.write(w, Factory)
 
   def namedText(elemTag: String, text: String): Elem =
     Elem(elemTag, Seq(), Seq(Txt(text)))
+
+  def format(e: Element): String = {
+    def formatAttr(a: Attribute): String =
+      s"""${a.name}="${a.values.mkString(" ")}""""
+
+    def format1(n: Node): Seq[String] =
+      n match {
+        case e: Element =>
+          val attrs = e.attributes.map(formatAttr)
+          val headTag =
+            if (attrs.isEmpty) Seq(s"<${e.tag}>")
+            else s"<${e.tag}" +: attrs.init :+ (attrs.last + ">")
+          headTag ++ (e.children.flatMap(format1) :+ s"</${e.tag}>")
+        case t: Text => Seq(t.text)
+      }
+    format1(e).mkString("\n")
+  }
+
+  def xmlWriteHint(expected: Element, actual: Element): String =
+    s"expected:\n${format(expected)}\ngot:\n${format(actual)}"
+
+  test("xml choice reader") {
+    val choiceA = namedText("a", "xyz")
+    val choiceB = namedText("b", "123")
+    val wrongChoice = namedText("c", "xyz")
+
+    val aReader = XmlReader.elemReader("a")
+    val bReader = XmlReader.elemReader("b")
+    val reader = XmlReader.choiceElementReader(Seq(aReader, bReader)).atPath("foo")
+
+    assertResult(namedText("a", "xyz"))(reader.read(choiceA).toOption.get)
+    assertResult(namedText("b", "123"))(reader.read(choiceB).toOption.get)
+    assertResult(new MissingElement(Seq("foo"), "a or b"))(reader.read(wrongChoice).swap.toOption.get)
+  }
+
+  test("xml sequence reader") {
+    val seqEmpty = Elem("seq", Seq(), Seq())
+    val seqA = Elem("seq", Seq(), Seq(namedText("a", "xyz")))
+    val seqAA = Elem("seq", Seq(), Seq(namedText("a", "xyz"), namedText("a", "123")))
+    val seqB = Elem("seq", Seq(), Seq(namedText("b", "ABC")))
+
+    val reader = XmlReader.sequenceElementReader("seq", 1, XmlReader.elemReader("a").map(XmlReader.childText _))
+    assertResult(Invalid(MissingElement(Seq("seq"), "a")))(reader.read(seqEmpty))
+    assertResult(Seq("xyz"))(reader.read(seqA).toOption.get)
+    assertResult(Seq("xyz", "123"))(reader.read(seqAA).toOption.get)
+    assertResult(Invalid(MissingElement(Seq("seq"), "a")))(reader.read(seqB))
+  }
 
   test("reads TextBox widgets from xml") {
     val xml = Elem("textbox",
@@ -45,6 +117,15 @@ class WidgetReaderXTest extends FunSuite {
       Seq(namedText("display", "Wolf Settings")))
 
     assertResult(TextBox(Some("Wolf Settings"), 150, 200, 250, 300, 12, 0.0, false))(readToWidget(xml))
+  }
+
+  test("writes TextBox widgets to xml") {
+    val xml = Elem("textbox",
+      dimensions ++ Seq(fontSize, color,
+        Attr("transparent", "false")),
+      Seq(namedText("display", "Wolf Settings")))
+
+    assertResult(xml)(writeToXml(TextBox(Some("Wolf Settings"), 150, 200, 250, 300, 12, 0.0, false)))
   }
 
   test("color reader correctly identifies colors") {
@@ -60,7 +141,7 @@ class WidgetReaderXTest extends FunSuite {
     val xml = Elem("textbox",
       dimensions ++ Seq(fontSize, color, Attr("transparent", "abc")),
       Seq(namedText("display", "Wolf Settings")))
-    assertResult(InvalidValue("textbox", "transparent", "abc"))(readToError(xml))
+    assertResult(InvalidAttribute(Seq("textbox"), "transparent", "abc"))(readToError(xml))
   }
 
   {
@@ -90,11 +171,25 @@ class WidgetReaderXTest extends FunSuite {
     assertResult(Switch(Some("foo"), 150, 200, 250, 300, Some("foo"), false))(readToWidget(xml))
   }
 
+  test("writes switch widgets to xml") {
+    val xml = Elem("switch",
+      dimensions :+ Attr("isOn", "false"),
+      Seq(namedText("variable", "foo")))
+    assertResult(xml)(writeToXml(Switch(Some("foo"), 150, 200, 250, 300, Some("foo"), false)))
+  }
+
   test("reads switch widgets with empty variable name from xml") {
     val xml = Elem("switch",
       dimensions :+ Attr("isOn", "false"),
       Seq(namedText("variable", "")))
     assertResult(Switch(None, 150, 200, 250, 300, None, false))(readToWidget(xml))
+  }
+
+  test("writes switch widgets with empty variable name to xml") {
+    val xml = Elem("switch",
+      dimensions :+ Attr("isOn", "false"),
+      Seq())
+    assertResult(xml)(writeToXml(Switch(None, 150, 200, 250, 300, None, false)))
   }
 
   test("reads monitor widgets from xml") {
@@ -108,13 +203,24 @@ class WidgetReaderXTest extends FunSuite {
         Some("this is the monitor"), 3, 12))(readToWidget(xml))
   }
 
+  test("writes monitor widgets to xml") {
+    val xml = Elem("monitor",
+      dimensions ++ Seq(fontSize, Attr("precision", "3")),
+      Seq(namedText("source", "5 + 10"),
+        namedText("display", "this is the monitor")))
+    assertResult(xml)(writeToXml(
+      Monitor(Some("5 + 10"),
+        150, 200, 250, 300,
+        Some("this is the monitor"), 3, 12)))
+  }
+
   test("reads button widgets from xml") {
     val xml = Elem("button",
       dimensions ++ Seq(
         Attr("forever", "false"),
         Attr("agentKind", "observer"),
         Attr("actionKey", "c"),
-        Attr("enabledBeforeTicks", "true")),
+        Attr("ticksEnabled", "false")),
       Seq(namedText("source", "go 100"),
         namedText("display", "go")))
     assertResult(
@@ -124,12 +230,43 @@ class WidgetReaderXTest extends FunSuite {
         Some('c'), false))(readToWidget(xml))
   }
 
+  test("writes button widgets to xml") {
+    val xml = Elem("button",
+      dimensions ++ Seq(
+        Attr("forever", "false"),
+        Attr("ticksEnabled", "false"),
+        Attr("agentKind", "observer")),
+      Seq(namedText("source", "go 100"),
+        namedText("display", "go")))
+    assertResult(xml)(writeToXml(
+      Button(
+        Some("go 100"), 150, 200, 250, 300,
+        Some("go"), false, AgentKind.Observer,
+        None, false)))
+  }
+
+  test("writes button widgets with actionKeys to xml") {
+    val xml = Elem("button",
+      dimensions ++ Seq(
+        Attr("forever", "false"),
+        Attr("ticksEnabled", "false"),
+        Attr("agentKind", "observer"),
+        Attr("actionKey", "c")),
+      Seq(namedText("source", "go 100"),
+        namedText("display", "go")))
+    assertResult(xml)(
+      writeToXml(Button(
+        Some("go 100"), 150, 200, 250, 300,
+        Some("go"), false, AgentKind.Observer,
+        Some('c'), false)))
+  }
+
   test("reads button widgets without an actionKey from xml") {
     val xml = Elem("button",
       dimensions ++ Seq(
         Attr("forever", "false"),
         Attr("agentKind", "turtle"),
-        Attr("enabledBeforeTicks", "false")),
+        Attr("ticksEnabled", "true")),
       Seq())
     assertResult(Button(None, 150, 200, 250, 300, None, false, AgentKind.Turtle, None, true))(
       readToWidget(xml))
@@ -150,21 +287,41 @@ class WidgetReaderXTest extends FunSuite {
       readToWidget(xml))
   }
 
-  test("reads view widgets") {
-    val xml = Elem("view",
+  test("writes slider widgets to xml") {
+    val xml = Elem("slider",
       dimensions ++ Seq(
+        Attr("default", "5.0"),
+        Attr("direction", "horizontal")),
+      Seq(
+        namedText("maximum", "100"),
+        namedText("minimum", "0"),
+        namedText("step", "maximum - minimum / 10"),
+        namedText("units", "Foozles"),
+        namedText("variable", "foo")))
+    assertResult(xml)(
+      writeToXml(
+        Slider(Some("foo"), 150, 200, 250, 300, Some("foo"),
+          "0", "100", 5, "maximum - minimum / 10", Some("Foozles"), Horizontal)))
+  }
+
+  test("reads view widgets") {
+    val dimElem = Elem("dimensions",
+      Seq(
         Attr("minPxcor", "-25"),
         Attr("maxPxcor", "25"),
         Attr("wrapInX", "true"),
         Attr("minPycor", "-25"),
         Attr("maxPycor", "25"),
         Attr("wrapInY", "true"),
-        Attr("patchSize", "13"),
+        Attr("patchSize", "13")),
+      Seq())
+    val xml = Elem("view",
+      dimensions ++ Seq(
         Attr("updateMode", "continuous"),
         Attr("fontSize", "12"),
         Attr("frameRate", "30.0"),
-        Attr("tickCounterVisible", "true")),
-      Seq(namedText("tickCounterLabel", "ticks")))
+        Attr("showTickCounter", "true")),
+      Seq(dimElem, namedText("tickCounterLabel", "ticks")))
 
     val dims =
       WorldDimensions(-25, 25, -25, 25, 13.0, true, true)
@@ -172,16 +329,42 @@ class WidgetReaderXTest extends FunSuite {
       readToWidget(xml))
   }
 
+  test("writes view widget to xml") {
+    val dimElem = Elem("dimensions",
+      Seq(
+        Attr("patchSize", "13.0"),
+        Attr("wrapInX", "true"),
+        Attr("wrapInY", "true"),
+        Attr("minPxcor", "-25"),
+        Attr("maxPxcor", "25"),
+        Attr("minPycor", "-25"),
+        Attr("maxPycor", "25")),
+      Seq())
+    val xml = Elem("view",
+      dimensions ++ Seq(
+        Attr("fontSize", "12"),
+        Attr("updateMode", "continuous"),
+        Attr("showTickCounter", "true"),
+        Attr("frameRate", "30.0")),
+      Seq(dimElem, namedText("tickCounterLabel", "ticks")))
+
+    val dims = WorldDimensions(-25, 25, -25, 25, 13.0, true, true)
+    val view = View(150, 200, 250, 300, dims, 12, UpdateMode.Continuous, true, Some("ticks"), 30.0)
+    val actual = writeToXml(view)
+    assertResult(xml, xmlWriteHint(xml, actual))(actual)
+  }
+
   test("reads chooser widgets") {
     val xml = Elem("chooser",
-      dimensions :+ Attr("defaultChoice", "0"),
+      dimensions :+ Attr("currentChoice", "0"),
       Seq(
         namedText("variable", "foo"),
+        Elem("choices", Seq(), Seq(
         namedText("numberChoice", "0.0"),
         namedText("stringChoice", "abc"),
         namedText("booleanChoice", "true"),
         Elem("listChoice", Seq(),
-          Seq(namedText("booleanChoice", "true"), namedText("stringChoice", "def")))))
+          Seq(namedText("booleanChoice", "true"), namedText("stringChoice", "def")))))))
 
     assertResult(Chooser(Some("foo"), 150, 200, 250, 300, Some("foo"),
       List(
@@ -192,26 +375,53 @@ class WidgetReaderXTest extends FunSuite {
       0))(readToWidget(xml))
   }
 
+  test("writes chooser widgets") {
+    val xml = Elem("chooser",
+      dimensions :+ Attr("currentChoice", "0"),
+      Seq(
+        namedText("variable", "foo"),
+        Elem("choices", Seq(), Seq(
+        namedText("numberChoice", "0.0"),
+        namedText("stringChoice", "abc"),
+        namedText("booleanChoice", "true"),
+        Elem("listChoice", Seq(),
+          Seq(namedText("booleanChoice", "true"), namedText("stringChoice", "def")))))))
+
+    val chooser = Chooser(Some("foo"), 150, 200, 250, 300, Some("foo"),
+      List(
+        ChooseableDouble(Double.box(0.0)),
+        ChooseableString("abc"),
+        ChooseableBoolean(Boolean.box(true)),
+        ChooseableList(LogoList(Boolean.box(true), "def"))),
+      0)
+
+    val actual = writeToXml(chooser)
+    assertResult(xml, xmlWriteHint(xml, actual))(actual)
+  }
+
   test("chooser widgets with an unavailable default choice return invalid") {
+    pending
     val xml = Elem("chooser",
       dimensions :+ Attr("defaultChoice", "0"),
       Seq())
-    assertResult(InvalidValue("chooser", "defaultChoice", "0"))(readToError(xml))
+    assertResult(InvalidAttribute(Seq("chooser"), "defaultChoice", "0"))(readToError(xml))
   }
 
   test("chooser widgets with invalid choices are invalid") {
     val xml = Elem("chooser",
-      dimensions :+ Attr("defaultChoice", "0"),
-      Seq(namedText("booleanChoice", "abc")))
-    assertResult(InvalidValue("chooser", "booleanChoice", "abc"))(readToError(xml))
+      dimensions :+ Attr("currentChoice", "0"),
+      Seq(
+        namedText("variable", "foo"),
+        Elem("choices", Seq(), Seq(namedText("booleanChoice", "abc")))))
+    assertResult(new InvalidElement(Seq("chooser"), "booleanChoice", "abc"))(readToError(xml))
   }
 
   test("reads string inputbox widgets") {
-    val xml = Elem("input",
+    val xml = Elem("stringInput",
       dimensions,
       Seq(
         namedText("variable", "foo"),
-        namedText("stringInput", "abc").copy(attributes = Seq(Attr("multiline", "true")))))
+        namedText("stringData", "abc").copy(attributes = Seq(Attr("kind", "string"), Attr("multiline", "true")))))
 
     assertResult(
       InputBox(Some("foo"), 150, 200, 250, 300,
@@ -219,8 +429,96 @@ class WidgetReaderXTest extends FunSuite {
         readToWidget(xml))
   }
 
+  test("writes string inputbox widgets") {
+    val xml = Elem("stringInput",
+      dimensions,
+      Seq(
+        namedText("variable", "foo"),
+        namedText("stringData", "abc")
+          .copy(attributes = Seq(Attr("multiline", "true"), Attr("kind", "string")))))
+    val input = InputBox(Some("foo"), 150, 200, 250, 300,
+      StringInput("abc", StringInput.StringLabel, true))
+
+    val actual = writeToXml(input)
+    assertResult(xml, s"expected:\n${format(xml)}\ngot:\n${format(actual)}")(actual)
+  }
+
+  test("reads numeric inputbox widgets") {
+    val xml = Elem("numericInput",
+      dimensions,
+      Seq(
+        namedText("variable", "foo"),
+        namedText("numericData", "123.4").copy(attributes = Seq(Attr("kind", "number")))))
+
+    assertResult(
+      InputBox(Some("foo"), 150, 200, 250, 300,
+        NumericInput(123.4, NumericInput.NumberLabel)))(
+        readToWidget(xml))
+  }
+
+  test("writes numeric inputbox widgets") {
+    val xml = Elem("numericInput",
+      dimensions,
+      Seq(
+        namedText("variable", "foo"),
+        namedText("numericData", "123.4").copy(attributes = Seq(Attr("kind", "number")))))
+    val inputBox = InputBox(Some("foo"), 150, 200, 250, 300, NumericInput(123.4, NumericInput.NumberLabel))
+
+    val actual = writeToXml(inputBox)
+
+    assertResult(xml, xmlWriteHint(xml, actual))(actual)
+  }
+
   test("reads plot widgets") {
-    pending
+    val xml = Elem("plot",
+      dimensions ++ Seq(Attr("autoPlotOn", "true"), Attr("legendOn", "true"),
+        Attr("xmin", "5"), Attr("xmax", "10"), Attr("ymin", "15"), Attr("ymax", "20")),
+      Seq(
+        namedText("setup", "setup-plot"),
+        namedText("update", "update-plot"),
+        namedText("display", "plot-name"),
+        namedText("yAxis", "turtles"),
+        namedText("xAxis", "time"),
+        Elem("pens", Seq(),
+          Seq(Elem("pen",
+            Seq(Attr("interval", "0.5"), Attr("mode", "0"),
+              Attr("color", "10"), Attr("inLegend", "false")),
+
+            Seq(namedText("setup", "setup-pen"), namedText("update", "update-pen"), namedText("display", "pen-name")))))))
+
+    val plotResult = readToWidget(xml)
+    val pen = Pen("pen-name", 0.5, 0, 10, false, "setup-pen", "update-pen")
+    assertResult(
+      Plot(Some("plot-name"), 150, 200, 250, 300, Some("time"), Some("turtles"), 5, 10, 15, 20,
+        true, true, "setup-plot", "update-plot", List(pen)))(plotResult)
+  }
+
+  test("writes plot widgets") {
+    val xml = Elem("plot",
+      Seq(Attr("autoPlotOn", "true"), Attr("legendOn", "true"),
+        Attr("xmin", "5.0"), Attr("xmax", "10.0"), Attr("ymin", "15.0"), Attr("ymax", "20.0")) ++
+        dimensions,
+      Seq(
+        namedText("display", "plot-name"),
+        namedText("xAxis", "time"),
+        namedText("yAxis", "turtles"),
+        namedText("setup", "setup-plot"),
+        namedText("update", "update-plot"),
+        Elem("pens", Seq(),
+          Seq(Elem("pen",
+            Seq(Attr("interval", "0.5"), Attr("mode", "0"),
+              Attr("color", "10"), Attr("inLegend", "false")),
+
+            Seq(namedText("setup", "setup-pen"), namedText("update", "update-pen"), namedText("display", "pen-name")))))))
+
+    val pen = Pen("pen-name", 0.5, 0, 10, false, "setup-pen", "update-pen")
+    val plot = Plot(
+      Some("plot-name"), 150, 200, 250, 300, Some("time"), Some("turtles"), 5, 10, 15, 20,
+      true, true, "setup-plot", "update-plot", List(pen))
+
+    val actual = writeToXml(plot)
+
+    assertResult(xml, xmlWriteHint(xml, actual))(actual)
   }
 
   test("reads output widgets from xml") {
@@ -228,37 +526,47 @@ class WidgetReaderXTest extends FunSuite {
     assertResult(Output(150, 200, 250, 300, 12))(readToWidget(xml))
   }
 
+  test("writes output widget to xml") {
+    val base = Output(150, 200, 250, 300, 12)
+    val xml = Elem("output", dimensions :+ fontSize, Seq())
+    assertResult(xml)(writeToXml(base))
+  }
+
   test("returns an invalid widget parse when a widget is missing required child element") {
-    pending
+    val xml = Elem("plot",
+      dimensions ++ Seq(Attr("autoPlotOn", "true"), Attr("legendOn", "true"),
+        Attr("xmin", "5"), Attr("xmax", "10"), Attr("ymin", "15"), Attr("ymax", "20")),
+      Seq())
+    assertResult(new MissingElement(Seq("plot"), "setup"))(readToError(xml))
   }
 
   test("returns an invalid widget parse when a widget is missing a required field") {
     val xml = Elem("output",
       dimensions.tail :+ fontSize,
       Seq())
-    assert(WidgetReaderX.read(xml).isInvalid)
-    assertResult(MissingKeys("output", Seq("left")))(readToError(xml))
+    assert(WidgetXml.read(xml).isInvalid)
+    assertResult(MissingKeys(Seq("output"), Seq("left")))(readToError(xml))
   }
 
   test("returns an invalid widget parse when a widget field has the wrong type") {
     val xml = Elem("output",
       dimensions.tail ++ Seq(Attr("left", "abc"), fontSize),
       Seq())
-    assert(WidgetReaderX.read(xml).isInvalid)
-    assertResult(InvalidValue("output", "left", "abc"))(readToError(xml))
+    assert(WidgetXml.read(xml).isInvalid)
+    assertResult(InvalidAttribute(Seq("output"), "left", "abc"))(readToError(xml))
   }
 
   test("returns an invalid widget parse when a widget is missing multiple required fields") {
     val xml = Elem("output",
       dimensions.tail.tail,
       Seq())
-    assert(WidgetReaderX.read(xml).isInvalid)
-    assertResult(MissingKeys("output", Seq("left", "top", "fontSize")))(readToError(xml))
+    assert(WidgetXml.read(xml).isInvalid)
+    assertResult(MissingKeys(Seq("output"), Seq("left", "top", "fontSize")))(readToError(xml))
   }
 
   test("returns an invalid widget parse when the widget type is unknown") {
     val xml = Elem("thingamajig", Seq(), Seq())
-    assert(WidgetReaderX.read(xml).isInvalid)
-    assertResult(UnknownWidgetType("thingamajig"))(readToError(xml))
+    assert(WidgetXml.read(xml).isInvalid)
+    assertResult(UnknownWidgetType(Seq("thingamajig")))(readToError(xml))
   }
 }
