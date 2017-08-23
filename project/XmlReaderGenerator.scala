@@ -66,15 +66,6 @@ object XmlReaderGenerator {
 
       append("")
 
-      append("  implicit class RichElementFactory(builder: ElementBuilder) {")
-      append("    def withOptionalElement(el: Option[Element]): ElementBuilder =")
-      append("      el.map(e => builder.withElement(e)).getOrElse(builder)")
-      append("    def withOptionalAttribute(name: String, value: Option[String]): ElementBuilder =")
-      append("      value.map(e => builder.withAttribute(name, e)).getOrElse(builder)")
-      append("    def withElementList(els: Seq[Element]): ElementBuilder =")
-      append("      els.foldLeft(builder) { case (b, el) => b.withElement(el) }")
-      append("  }")
-
       complexTypeSpecs.map(generateComplexTypeWriter(typesMap)).foreach(append)
       append("  def write(widget: Widget, factory: ElementFactory): Element = {")
       matchCase("widget", generateComplexTypeWriteMatches(complexTypeSpecs), indentLevel = 4).foreach(append)

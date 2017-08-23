@@ -37,11 +37,13 @@ package object fileformat {
   // basicLoader only loads the core of the model, and does no autoconversion, but has no external dependencies
   def basicLoader: ConfigurableModelLoader =
     new ConfigurableModelLoader()
+      .addFormat[NLogoXFormat.Section, NLogoXFormat](new NLogoXFormat(ScalaXmlElementFactory))
       .addFormat[Array[String], NLogoFormat](new NLogoFormat)
       .addSerializer[Array[String], NLogoFormat](NLogoModelSettings)
 
   def standardLoader(literalParser: LiteralParser) = {
     new ConfigurableModelLoader()
+      .addFormat[NLogoXFormat.Section, NLogoXFormat](new NLogoXFormat(ScalaXmlElementFactory))
       .addFormat[Array[String], NLogoFormat](new NLogoFormat)
       .addSerializer[Array[String], NLogoFormat](NLogoModelSettings)
       .addSerializer[Array[String], NLogoFormat](new NLogoHubNetFormat(literalParser))

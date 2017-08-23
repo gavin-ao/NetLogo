@@ -21,6 +21,7 @@ trait Attribute {
 
 trait ElementFactory {
   def newElement(tag: String): ElementBuilder
+
 }
 
 trait ElementBuilder {
@@ -28,4 +29,10 @@ trait ElementBuilder {
   def withElement(element: Element): ElementBuilder
   def withText(text: String): ElementBuilder
   def build: Element
+  def withOptionalElement(el: Option[Element]): ElementBuilder =
+    el.map(withElement).getOrElse(this)
+  def withOptionalAttribute(name: String, value: Option[String]): ElementBuilder =
+    value.map(e => withAttribute(name, e)).getOrElse(this)
+  def withElementList(els: Seq[Element]): ElementBuilder =
+    els.foldLeft(this) { case (b, el) => b.withElement(el) }
 }

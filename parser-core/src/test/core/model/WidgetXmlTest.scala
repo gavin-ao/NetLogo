@@ -12,35 +12,11 @@ import org.scalatest.FunSuite
 import
   cats.data.Validated.Invalid
 
-class WidgetReaderXTest extends FunSuite {
-  case class Elem(tag: String, attributes: Seq[Attribute], children: Seq[Node]) extends Element
-  case class Txt(text: String) extends Text
-  object Attr {
-    def apply(name: String, value: String) = new Attr(name, Seq(value))
-  }
-  case class Attr(name: String, values: Seq[String]) extends Attribute
 
-  object Factory extends ElementFactory {
-    def newElement(tag: String): ElementBuilder = new Builder(tag)
-  }
+object WidgetXmlTest {
+  import DummyXML._
 
-  class Builder(tag: String) extends ElementBuilder {
-    var attributes = Seq.empty[Attr]
-    var children = Seq.empty[Node]
-    def withAttribute(name: String, value: String) = {
-      attributes :+= Attr(name, value)
-      this
-    }
-    def withElement(element: Element): ElementBuilder = {
-      children :+= element
-      this
-    }
-    def withText(txt: String): ElementBuilder = {
-      children :+= Txt(txt)
-      this
-    }
-    def build = Elem(tag, attributes, children)
-  }
+  val color = Attr("color", "#000000")
 
   val dimensions =
     Seq(Attr("left", "150"),
@@ -49,7 +25,21 @@ class WidgetReaderXTest extends FunSuite {
       Attr("bottom", "300"))
 
   val fontSize = Attr("fontSize", "12")
-  val color = Attr("color", "#000000")
+
+  private val textboxXml = Elem("textbox",
+    dimensions ++ Seq(fontSize, color, Attr("transparent", "false")),
+    Seq(namedText("display", "Wolf Settings")))
+
+  private val textboxWidget = TextBox(Some("Wolf Settings"), 150, 200, 250, 300, 12, 0.0, false)
+
+  val widgetXmlPairs = Map[String, (Element, Widget)](
+    "textbox" -> (textboxXml -> textboxWidget)
+  )
+}
+
+class WidgetXmlTest extends FunSuite {
+  import DummyXML._
+  import WidgetXmlTest._
 
   def readToWidget(xml: Element): Widget =
     WidgetXml.read(xml).toOption.get
@@ -60,25 +50,7 @@ class WidgetReaderXTest extends FunSuite {
   def writeToXml(w: Widget): Element =
     WidgetXml.write(w, Factory)
 
-  def namedText(elemTag: String, text: String): Elem =
-    Elem(elemTag, Seq(), Seq(Txt(text)))
-
-  def format(e: Element): String = {
-    def formatAttr(a: Attribute): String =
-      s"""${a.name}="${a.values.mkString(" ")}""""
-
-    def format1(n: Node): Seq[String] =
-      n match {
-        case e: Element =>
-          val attrs = e.attributes.map(formatAttr)
-          val headTag =
-            if (attrs.isEmpty) Seq(s"<${e.tag}>")
-            else s"<${e.tag}" +: attrs.init :+ (attrs.last + ">")
-          headTag ++ (e.children.flatMap(format1) :+ s"</${e.tag}>")
-        case t: Text => Seq(t.text)
-      }
-    format1(e).mkString("\n")
-  }
+  def format(e: Element): String = formatXml(e)
 
   def xmlWriteHint(expected: Element, actual: Element): String =
     s"expected:\n${format(expected)}\ngot:\n${format(actual)}"
@@ -111,21 +83,11 @@ class WidgetReaderXTest extends FunSuite {
   }
 
   test("reads TextBox widgets from xml") {
-    val xml = Elem("textbox",
-      dimensions ++ Seq(color, fontSize,
-        Attr("transparent", "false")),
-      Seq(namedText("display", "Wolf Settings")))
-
-    assertResult(TextBox(Some("Wolf Settings"), 150, 200, 250, 300, 12, 0.0, false))(readToWidget(xml))
+    assertResult(textboxWidget)(readToWidget(textboxXml))
   }
 
   test("writes TextBox widgets to xml") {
-    val xml = Elem("textbox",
-      dimensions ++ Seq(fontSize, color,
-        Attr("transparent", "false")),
-      Seq(namedText("display", "Wolf Settings")))
-
-    assertResult(xml)(writeToXml(TextBox(Some("Wolf Settings"), 150, 200, 250, 300, 12, 0.0, false)))
+    assertResult(textboxXml)(writeToXml(textboxWidget))
   }
 
   test("color reader correctly identifies colors") {

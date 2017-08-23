@@ -149,6 +149,7 @@ lazy val netlogo = project.in(file("netlogo-gui")).
       "org.parboiled" %% "parboiled" % "2.1.3",
       "org.jogamp.jogl" % "jogl-all" % "2.3.2",
       "org.jogamp.gluegen" % "gluegen-rt" % "2.3.2",
+      "org.scala-lang.modules" %% "scala-xml" % "1.0.6",
       "org.jhotdraw" % "jhotdraw" % "6.0b1" % "provided,optional" from cclArtifacts("jhotdraw-6.0b1.jar"),
       "org.jmock" % "jmock" % "2.5.1" % "test",
       "org.jmock" % "jmock-legacy" % "2.5.1" % "test",

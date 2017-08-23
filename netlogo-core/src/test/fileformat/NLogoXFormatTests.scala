@@ -1,0 +1,133 @@
+// (C) Uri Wilensky. https://github.com/NetLogo/NetLogo
+
+package org.nlogo.fileformat
+
+import
+  java.net.URI
+
+import
+  java.nio.file.{ Files, Paths }
+
+import
+  org.nlogo.api.ComponentSerialization
+
+import
+  org.nlogo.core.{ Button, DummyCompilationEnvironment, DummyExtensionManager, Model, View, Widget }
+
+import
+  org.nlogo.core.model.DummyXML._
+
+import
+  org.scalatest.FunSuite
+
+import
+  scala.collection.JavaConverters._
+
+import
+  scala.xml.XML
+
+abstract class NLogoXFormatTest[A] extends ModelSectionTest[NLogoXFormat.Section, NLogoXFormat, A] {
+  val extensionManager = new DummyExtensionManager()
+  val compilationEnvironment = new DummyCompilationEnvironment()
+
+  def nlogoXFormat = new NLogoXFormat(Factory)
+
+  override def compareSerialized(sectionA: NLogoXFormat.Section, sectionB: NLogoXFormat.Section): Boolean = {
+    sectionA == sectionB
+  }
+
+  override def displaySerialized(section: NLogoXFormat.Section): String = {
+    section.toString
+  }
+}
+
+class NLogoXFormatIOTest extends FunSuite {
+  val extensionManager = new DummyExtensionManager()
+  val compilationEnvironment = new DummyCompilationEnvironment()
+  val format = new NLogoXFormat(ScalaXmlElementFactory)
+
+  val sampleUri = getClass.getResource("/fileformat/Sample.nlogox").toURI
+
+  test("fails when reading in sections from a bad URI") {
+    assert(format.sections(new URI("file:///not-a-real-file")).isFailure)
+  }
+  test("reads in sections from a given URI") {
+    assert(format.sections(sampleUri).isSuccess)
+    assert(format.sections(sampleUri).get.size == 6)
+  }
+  test("saves specified sections to a given URI") {
+    val sections =
+      format.sections(sampleUri).get
+    val pathToWrite = Files.createTempFile("SampleCopy", ".nlogox")
+    Files.delete(pathToWrite)
+    val result = format.writeSections(sections, pathToWrite.toUri)
+    assert(result.isSuccess)
+    assert(Paths.get(result.get).toAbsolutePath == pathToWrite.toAbsolutePath)
+    format.sections(result.get).get.foreach {
+      case (k, v) if ! k.contains("info") => assert(v == sections(k)) // pretty-printing breaks info tab
+      case _ =>
+    }
+    pending
+    // TODO: This does need to pass long-term, but won't pass until our xml wrapper writes CDATA
+    // :P
+    // Check out DOM, JDOM, dom4j
+    // assert(Files.readAllLines(Paths.get(result.get)) == Files.readAllLines(Paths.get(sampleUri)))
+  }
+  test("invalid nlogox file gives error about model") {
+    pending
+  }
+  test("invalid non-XML file suggests that the file extension may be incorrect") {
+    val modelsLibrary = System.getProperty("netlogo.models.dir", "models")
+    val antsBenchmarkPath = Paths.get(modelsLibrary, "test", "benchmarks", "Ants Benchmark.nlogo")
+    assert(format.sections(antsBenchmarkPath.toUri).isFailure)
+    assert(format.sections(antsBenchmarkPath.toUri).failed.get.getMessage.contains("file extension"))
+  }
+}
+
+class NLogoXCodeComponentTest extends NLogoXFormatTest[String] {
+  def subject: ComponentSerialization[NLogoXFormat.Section, NLogoXFormat] =
+    nlogoXFormat.codeComponent
+
+  def modelComponent(model: Model): String = model.code
+  def attachComponent(b: String): Model = Model(code = b)
+
+  testDeserializes("empty code section to empty code element", namedText("code", ""), "")
+  testSerializes("strips whitespace from end-of-line", "abc  \ndef", namedText("code", "abc\ndef"))
+  testSerializes("strips whitespace from end-of-line, without deleting blank lines", "abc  \n\ndef", namedText("code", "abc\n\ndef"))
+  testRoundTripsSerialForm("multiple code lines with whitespace lines between", namedText("code", "breed [foos foo]\n\nto baz show 1 end"))
+  testRoundTripsSerialForm("single line of code", namedText("code", "breed [foos foo]"))
+  testRoundTripsObjectForm("empty line code", "")
+  testRoundTripsObjectForm("single line of code", "breed [ foos foo ]")
+}
+
+class NLogoXInfoComponentTest extends NLogoXFormatTest[String] {
+  def subject = nlogoXFormat.infoComponent
+  def modelComponent(model: Model): String = model.info
+  def attachComponent(b: String): Model = Model(info = b)
+
+  testDeserializes("empty info section to empty string", namedText("info", ""), "")
+  testRoundTripsSerialForm("single line of info tab", namedText("info", "## About this model"))
+  testRoundTripsObjectForm("empty info tab", "")
+}
+
+class NLogoXVersionComponentTest extends NLogoXFormatTest[String] {
+  def subject = nlogoXFormat.version
+  def modelComponent(model: Model): String = model.version
+  def attachComponent(b: String): Model = Model(version = b)
+
+  testRoundTripsObjectForm("normal version", "NetLogo 6.0.5")
+  testRoundTripsObjectForm("3D version", "NetLogo 3D 6.0.5")
+  testDeserializes("unknown version", namedText("version", "NetLogo 4D 8.9"), "NetLogo 4D 8.9")
+}
+
+class NLogoXInterfaceComponentTest extends NLogoXFormatTest[Seq[Widget]] {
+  def subject = nlogoXFormat.interfaceComponent
+  def modelComponent(model: Model): Seq[Widget] = model.widgets
+  def attachComponent(widgets: Seq[Widget]): Model = Model(widgets = widgets)
+
+  testErrorsOnDeserialization("empty widgets section", Elem("widgets", Seq(), Seq()), "Every model must have at least a view...")
+  testErrorsOnDeserialization("invalid widgets", Elem("widgets", Seq(), Seq(Elem("view", Seq(), Seq()))),
+    "view is missing required attributes 'left', 'top', 'right', 'bottom'")
+  testRoundTripsObjectForm("default view", Seq(View()))
+  testRoundTripsObjectForm("view and button", Seq(View(), Button(source = Some("abc"), 0, 0, 0, 0)))
+}

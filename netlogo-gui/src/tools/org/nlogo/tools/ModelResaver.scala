@@ -165,7 +165,9 @@ object ModelResaver {
   class ResaveController(path: URI) extends OpenModelController with SaveModelController {
     // SaveModelController
     def chooseFilePath(modelType: org.nlogo.api.ModelType): Option[java.net.URI] = {
-      Some(path)
+      val pathSegments = path.toString.split("\\.")
+      val nlogoXPath = pathSegments.init
+      Some(new URI((nlogoXPath :+ "nlogox").mkString(".")))
     }
     def shouldSaveModelOfDifferingVersion(version: String): Boolean = true
     def warnInvalidFileFormat(format: String): Unit = {
