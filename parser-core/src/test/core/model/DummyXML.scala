@@ -5,10 +5,7 @@ package org.nlogo.core.model
 object DummyXML {
   case class Elem(tag: String, attributes: Seq[Attribute], children: Seq[Node]) extends Element
   case class Txt(text: String) extends Text
-  object Attr {
-    def apply(name: String, value: String) = new Attr(name, Seq(value))
-  }
-  case class Attr(name: String, values: Seq[String]) extends Attribute
+  case class Attr(name: String, value: String) extends Attribute
 
   object Factory extends ElementFactory {
     def newElement(tag: String): ElementBuilder = new Builder(tag)
@@ -37,7 +34,7 @@ object DummyXML {
 
   def formatXml(e: Element): String = {
     def formatAttr(a: Attribute): String =
-      s"""${a.name}="${a.values.mkString(" ")}""""
+      s"""${a.name}="${a.value}""""
 
     def format1(n: Node): Seq[String] =
       n match {

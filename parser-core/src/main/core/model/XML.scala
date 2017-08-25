@@ -16,7 +16,7 @@ trait Element extends Node {
 
 trait Attribute {
   def name: String
-  def values: Seq[String]
+  def value: String
 }
 
 trait ElementFactory {

@@ -20,7 +20,7 @@ case class ScalaXmlElement(val elem: Elem) extends Element {
 
 case class ScalaXmlAttribute(val attr: XmlAttribute) extends Attribute {
   def name: String = attr.key
-  def values: Seq[String] = attr.value map { case t: XmlText => t.data }
+  def value: String = attr.value.map(t => t match { case t: XmlText => t.data }).mkString("")
 }
 
 case class ScalaTextElement(val atom: Atom[String]) extends Text {

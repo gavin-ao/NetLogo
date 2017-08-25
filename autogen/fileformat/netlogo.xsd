@@ -11,8 +11,8 @@
         <xsd:element name="shapes">
           <xsd:complexType>
             <xsd:sequence>
-              <xsd:element name="turtleShape" type="TurtleShape" maxOccurs="unbounded" />
-              <xsd:element name="linkShape" type="LinkShape" maxOccurs="unbounded" />
+              <xsd:element name="shapes" type="turtleShape" maxOccurs="unbounded" />
+              <xsd:element name="linkShapes" type="linkShape" maxOccurs="unbounded" />
             </xsd:sequence>
           </xsd:complexType>
         </xsd:element>
@@ -481,41 +481,112 @@
     </xsd:all>
     <xsd:attributeGroup ref="Positioned"/>
     <xsd:attributeGroup ref="FontSized" />
-    <xsd:attribute name="color" type="svg:ColorType" use="required" />
+    <xsd:attribute name="color" type="svg:ColorType" use="required" >
+      <xsd:annotation>
+        <xsd:appinfo fieldType="xsd:double" />
+      </xsd:annotation>
+    </xsd:attribute>
     <xsd:attribute name="transparent" type="xsd:boolean" use="required" />
   </xsd:complexType>
 
-  <xsd:complexType name="TurtleShape">
-    <xsd:sequence>
-      <xsd:element name="svg">
-        <xsd:complexType>
-          <xsd:sequence>
-            <xsd:choice>
-              <xsd:element name="polygon"   type="svg:polygonType" />
-              <xsd:element name="circle"    type="svg:circleType"  />
-              <xsd:element name="line"      type="svg:lineType" />
-              <xsd:element name="rectangle" type="svg:rectType" />
-            </xsd:choice>
-          </xsd:sequence>
-        </xsd:complexType>
-      </xsd:element>
-    </xsd:sequence>
+  <xsd:complexType name="turtleShape">
+    <xsd:annotation>
+      <xsd:appinfo className="TurtleShape" import="false" additionalImports="Shape.VectorShape" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:element name="elements" type="elements" />
+    </xsd:all>
     <xsd:attribute name="name" type="xsd:string" use="required" />
     <xsd:attribute name="rotatable" type="xsd:boolean" use="required" />
-    <xsd:attribute name="editableColorIndex" type="xsd:integer" />
+    <xsd:attribute name="editableColorIndex" type="xsd:integer" use="required" />
   </xsd:complexType>
 
-  <xsd:complexType name="LinkShape">
+  <xsd:complexType name="elements">
+    <xsd:annotation>
+      <xsd:appinfo className="Seq[CoreElement]" passThrough="true" import="false" />
+    </xsd:annotation>
     <xsd:sequence>
-      <xsd:element name="linkLine" minOccurs="3" maxOccurs="3">
-        <xsd:complexType>
-          <xsd:attribute name="offset" type="xsd:float" use="required"/>
-          <xsd:attribute name="isVisible" type="xsd:boolean" use="required" />
-          <xsd:attribute name="stroke-dasharray" type="svg:StrokeDashArrayValueType" use="required"/>
-        </xsd:complexType>
-      </xsd:element>
-      <xsd:element name="indicator" maxOccurs="1" type="TurtleShape" />
+      <xsd:choice>
+        <xsd:annotation>
+          <xsd:appinfo passThrough="true" fieldName="elems" />
+        </xsd:annotation>
+        <xsd:element name="circle"    type="circle"  />
+        <xsd:element name="line"      type="line" />
+        <xsd:element name="rect"      type="rect" />
+        <xsd:element name="polygon"   type="polygon" />
+       </xsd:choice>
     </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="circle">
+    <xsd:annotation>
+      <xsd:appinfo className="CircleElem" import="false" />
+    </xsd:annotation>
+    <xsd:attribute name="cx" type="xsd:integer" use="required" >
+      <xsd:annotation>
+        <xsd:appinfo fieldName="x" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="cy" type="xsd:integer" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="y" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="diameter" type="xsd:integer" use="required" />
+    <xsd:attributeGroup ref="ShapeElement"/>
+  </xsd:complexType>
+
+  <xsd:complexType name="line">
+    <xsd:annotation>
+      <xsd:appinfo className="LineElem" import="false" />
+    </xsd:annotation>
+    <xsd:attribute name="x1" type="xsd:integer" use="required" />
+    <xsd:attribute name="y1" type="xsd:integer" use="required" />
+    <xsd:attribute name="x2" type="xsd:integer" use="required" />
+    <xsd:attribute name="y2" type="xsd:integer" use="required" />
+    <xsd:attributeGroup ref="ShapeElement"/>
+  </xsd:complexType>
+
+  <xsd:complexType name="rect">
+    <xsd:annotation>
+      <xsd:appinfo className="RectangleElem" import="false" />
+    </xsd:annotation>
+    <xsd:attribute name="x" type="xsd:integer" use="required" />
+    <xsd:attribute name="y" type="xsd:integer" use="required" />
+    <xsd:attribute name="width" type="xsd:integer" use="required" />
+    <xsd:attribute name="height" type="xsd:integer" use="required" />
+    <xsd:attributeGroup ref="ShapeElement"/>
+  </xsd:complexType>
+
+  <xsd:complexType name="polygon">
+    <xsd:annotation>
+      <xsd:appinfo className="PolygonElem" import="false" additionalImports="Shape.Polygon" />
+    </xsd:annotation>
+    <xsd:attribute name="points" type="svg:PointsType" use="required" />
+    <xsd:attributeGroup ref="ShapeElement"/>
+  </xsd:complexType>
+
+  <xsd:complexType name="linkShape">
+    <xsd:annotation>
+      <xsd:appinfo import="false" additionalImports="Shape.LinkShape" />
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:element name="linkLine" type="LinkLine" minOccurs="3" maxOccurs="3" />
+      <xsd:element name="indicator" maxOccurs="1" type="turtleShape" />
+    </xsd:sequence>
+    <xsd:attribute name="name" type="xsd:string" use="required" />
+    <xsd:attribute name="curviness" type="xsd:double" use="required" />
+  </xsd:complexType>
+
+  <xsd:complexType name="LinkLine">
+    <xsd:annotation>
+      <xsd:appinfo import="false" />
+    </xsd:annotation>
+    <xsd:all>
+      <xsd:attribute name="offset" type="xsd:float" use="required"/>
+      <xsd:attribute name="isVisible" type="xsd:boolean" use="required" />
+      <xsd:attribute name="stroke-dasharray" type="svg:StrokeDashArrayValueType" use="required"/>
+    </xsd:all>
   </xsd:complexType>
 
   <xsd:attributeGroup name="Positioned">
@@ -527,6 +598,12 @@
 
   <xsd:attributeGroup name="FontSized">
     <xsd:attribute name="fontSize" type="xsd:positiveInteger" use="required" />
+  </xsd:attributeGroup>
+
+  <xsd:attributeGroup name="ShapeElement">
+    <xsd:attribute name="color" type="svg:ColorType" use="required" />
+    <xsd:attribute name="filled" type="xsd:boolean" use="required" />
+    <xsd:attribute name="marked" type="xsd:boolean" use="required" />
   </xsd:attributeGroup>
 
   <xsd:complexType name="CodeSection" >

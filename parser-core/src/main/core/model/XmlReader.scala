@@ -5,10 +5,10 @@ package org.nlogo.core.model
 import java.lang.{ Integer => JInteger }
 
 import
-  org.nlogo.core.Color
+  org.nlogo.core.{ Color, RgbColor }
 
 import
-  cats.Applicative
+  cats.{ Applicative, Traverse }
 
 import
   cats.data.Validated,
@@ -21,8 +21,11 @@ object XmlReader {
   def characterReader(name: String): XmlReader[Option[Char]] =
     new OptionalAttributeReader(name).map(_.flatMap(textToOption).flatMap(_.headOption))
 
-  def colorReader(name: String): XmlReader[Double] =
-    new AttributeReader(name).flatMap(hexColorToDouble(name))
+  def colorReader(name: String): XmlReader[RgbColor] =
+    new AttributeReader(name).flatMap(hexColorToRgbColor(name))
+
+  def pointsReader(name: String): XmlReader[Seq[(Int, Int)]] =
+    new AttributeReader(name).flatMap(textToPointsSequence(name))
 
   def doubleReader(name: String): XmlReader[Double] =
     validReader(name, _.toDouble)
@@ -66,15 +69,41 @@ object XmlReader {
     if (s.isEmpty) None
     else Some(s)
 
-  def doubleToHexColor(d: Double): String = {
-    val i = Color.getARGBbyPremodulatedColorNumber(d) & 0xffffff // strip off alpha channel
+  private def textToPointsSequence(name: String)(s: String): Validated[ParseError, Seq[(Int, Int)]] = {
+    import cats.instances.list._
+    try {
+      val pointStrings = s.split(" ").toList
+      Traverse[List].traverse[({ type l[A] = Validated[ParseError, A] })#l, String, (Int, Int)](pointStrings) { s =>
+        val ps = s.split(",")
+        if (ps.length == 2) {
+          val x = ps(0).toInt
+          val y = ps(1).toInt
+          Valid((x, y))
+        } else {
+          Invalid(InvalidAttribute(Seq(), name, s))
+        }
+      }
+    } catch {
+      case e: Exception => Invalid(InvalidAttribute(Seq(), name, s))
+    }
+  }
 
+  def rgbColorToDouble(color: RgbColor): Double =
+    Color.getClosestColorNumberByARGB(Color.getRGBInt(color.red, color.green, color.blue))
+
+  def doubleToRgbColor(d: Double): RgbColor = {
+    val i = Color.getARGBbyPremodulatedColorNumber(d) & 0xffffff // strip off alpha channel
+    RgbColor(i & 0xff << 16, i & 0xff << 8, i & 0xff, i & 0xff << 24)
+  }
+
+  def rgbColorToHex(c: RgbColor): String = {
+    val i = Color.getARGBIntByRgbColor(c) & 0xffffff // strip off alpha channel
     val baseHexString = Integer.toHexString(i)
     val leadingZeros = 6 - baseHexString.length
     s"#${"0" * leadingZeros}${baseHexString}".toUpperCase
   }
 
-  private def hexColorToDouble(keyName: String)(hexString: String): Validated[ParseError, Double] = {
+  private def hexColorToRgbColor(keyName: String)(hexString: String): Validated[ParseError, RgbColor] = {
     if (hexString.length < 7)
       Invalid(InvalidAttribute(Seq(), keyName, hexString))
     else {
@@ -83,7 +112,7 @@ object XmlReader {
         val r = JInteger.valueOf(rs, 16)
         val g = JInteger.valueOf(gs, 16)
         val b = JInteger.valueOf(bs, 16)
-        Valid(Color.getClosestColorNumberByARGB(Color.getRGBInt(r, g, b)))
+        Valid(RgbColor(r, g, b))
       } catch {
         case e: NumberFormatException =>
           Invalid(InvalidAttribute(Seq(), keyName, hexString))
@@ -94,7 +123,7 @@ object XmlReader {
   class AttributeReader[A](val name: String) extends XmlReader[String] {
     def read(elem: Element): Validated[ParseError, String] =
       elem.attributes.find(_.name == name)
-        .map(a => Valid(a.values.head))
+        .map(a => Valid(a.value))
         .getOrElse(Invalid(MissingKeys(Seq(), Seq(name))))
   }
 
@@ -129,7 +158,7 @@ object XmlReader {
 
   class OptionalAttributeReader[A](val name: String) extends XmlReader[Option[String]] {
     def read(elem: Element): Validated[ParseError, Option[String]] =
-      Valid(elem.attributes.find(_.name == name).map(_.values.head))
+      Valid(elem.attributes.find(_.name == name).map(_.value))
   }
 
   class OptionalElementReader(val name: String) extends XmlReader[Option[Element]] {

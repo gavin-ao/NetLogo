@@ -48,7 +48,7 @@ abstract class XMLProviderTest extends FunSuite with Inside {
     inside(foo.attributes.head) {
       case a: Attribute =>
         assertResult("abc", "attribute has name as specified")(a.name)
-        assertResult(Seq("def"), "attribute has value as specified")(a.values)
+        assertResult("def", "attribute has value as specified")(a.value)
     }
   }
 
@@ -64,7 +64,7 @@ abstract class XMLProviderTest extends FunSuite with Inside {
     inside(foo.attributes(1)) {
       case a: Attribute =>
         assertResult("xyz", "attribute has name as specified")(a.name)
-        assertResult(Seq("123"), "attribute has value as specified")(a.values)
+        assertResult("123", "attribute has value as specified")(a.value)
     }
   }
 
@@ -75,7 +75,7 @@ abstract class XMLProviderTest extends FunSuite with Inside {
     inside(foo.attributes.head) {
       case a: Attribute =>
         assertResult("abc", "attribute has name as specified")(a.name)
-        assertResult(Seq("""d"e"f"""), "xml-unsafe attributes are available as specified")(a.values)
+        assertResult("""d"e"f""", "xml-unsafe attributes are available as specified")(a.value)
     }
   }
 
@@ -87,7 +87,7 @@ abstract class XMLProviderTest extends FunSuite with Inside {
     inside(foo.children.head) {
       case e: Element =>
         assertResult("bar", "sub-element has specified tag")(e.tag)
-        assertResult(Seq("qux"), "sub-element has specified attributes")(e.attributes.head.values)
+        assertResult("qux", "sub-element has specified attributes")(e.attributes.head.value)
     }
   }
 
@@ -110,7 +110,7 @@ abstract class XMLProviderTest extends FunSuite with Inside {
     inside(e.attributes.head) {
       case a: Attribute =>
         assertResult("bar", s"expect foo in $xmlSnippet to have attribute named bar")(a.name)
-        assertResult(Seq("qux"), s"expect foo[@bar] in $xmlSnippet to have value qux")(a.values)
+        assertResult("qux", s"expect foo[@bar] in $xmlSnippet to have value qux")(a.value)
     }
   }
 
@@ -131,7 +131,7 @@ abstract class XMLProviderTest extends FunSuite with Inside {
     inside(e.attributes.head) {
       case a: Attribute =>
         assertResult("bar", s"expect foo in $xmlSnippet to have attribute named bar")(a.name)
-        assertResult(Seq("<qux>"), s"expect foo[@bar] in $xmlSnippet to contain unescaped value <qux>")(a.values)
+        assertResult("<qux>", s"expect foo[@bar] in $xmlSnippet to contain unescaped value <qux>")(a.value)
     }
   }
 }
