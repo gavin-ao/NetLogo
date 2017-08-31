@@ -135,4 +135,12 @@ class ShapeXmlTest extends FunSuite {
   test("writes turtle shape with multiple shapes") {
     assertResult(multiShapeTurtleXml)(writeToXml(multiShapeTurtle))
   }
+
+  test("reads link shapes") {
+    pending
+  }
+
+  test("writes link shapes") {
+    pending
+  }
 }

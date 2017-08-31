@@ -38,12 +38,46 @@ class XmlReaderTest extends FunSuite {
     assertResult(Invalid(MissingElement(Seq("seq"), "a")))(reader.read(seqB))
   }
 
-  test("xml chain sequence reader reads empty xml element") {
-    val seqEmpty = Elem("seq", Seq(), Seq())
+  test("xml chain reader (min 0) reads element sequence") {
+    val seqA = Seq(namedText("a", "xyz"))
+    val seqB = Seq(namedText("b", "xyz"))
+    val seqAB = seqA ++ seqB
 
-    val reader = XmlReader.chainSequenceElementReader("seq", 0, XmlReader.elemReader("a").map(XmlReader.childText _))
+    val reader = XmlReader.chainElementReader(0, None, XmlReader.elemReader("a").map(XmlReader.childText _))
 
-    assertResult(Valid((Seq(), Seq())))(reader.read(seqEmpty))
+    assertResult(Valid((Seq(), Seq())))(reader.read(Seq()))
+    assertResult(Valid((Seq("xyz"), Seq())))(reader.read(seqA))
+    assertResult(Valid((Seq(), seqB)))(reader.read(seqB))
+    assertResult(Valid((Seq("xyz"), seqB)))(reader.read(seqAB))
+  }
+
+  test("xml chain reader passes on errors of child readers") {
+    val seqA = Seq(namedText("a", "xyz"))
+
+    val reader = XmlReader.chainElementReader(0, None, XmlReader.elemReader("a").flatMap(XmlReader.doubleReader("foo").read _))
+
+    assertResult(Invalid(MissingKeys(Seq(), Seq("foo"))))(reader.read(seqA))
+  }
+
+  test("xml chain reader enforces minimum number of elements") {
+    val seqA = Seq(namedText("a", "xyz"))
+    val seqB = Seq(namedText("b", "xyz"))
+    val seqAB = seqA ++ seqB
+
+    val reader = XmlReader.chainElementReader(1, None, XmlReader.elemReader("a").map(XmlReader.childText _))
+
+    assertResult(Invalid(TooFewElements(Seq(), "a", 1, 0)))(reader.read(Seq()))
+    assertResult(Valid((Seq("xyz"), Seq())))(reader.read(seqA))
+    assertResult(Invalid(TooFewElements(Seq(), "a", 1, 0)))(reader.read(seqB))
+    assertResult(Valid((Seq("xyz"), seqB)))(reader.read(seqAB))
+  }
+
+  test("xml chain reader enforces maximum number of elements") {
+    val a = namedText("a", "xyz")
+    val seqAAA = Seq(a, a, a)
+    val reader = XmlReader.chainElementReader(0, Some(2), XmlReader.elemReader("a").map(XmlReader.childText _))
+
+    assertResult(Invalid(TooManyElements(Seq(), "a", 2, 3)))(reader.read(seqAAA))
   }
 
   test("xml pointsReader") {

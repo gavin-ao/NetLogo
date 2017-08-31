@@ -60,6 +60,20 @@ class MissingElement(val path: Seq[String], val elementName: String) extends Mis
     new MissingElement(path = additionalPath ++ path, elementName)
 }
 
+case class TooFewElements(path: Seq[String], elementName: String, min: Int, actual: Int) extends MissingValues {
+  val message = s"expected to find at least ${min} ${elementName} elements at ${path.mkString("/")}, but found only ${actual}"
+
+  def atPath(additionalPath: Seq[String]): ParseError =
+    TooFewElements(path = additionalPath ++ path, elementName, min, actual)
+}
+
+case class TooManyElements(path: Seq[String], elementName: String, max: Int, actual: Int) extends MissingValues {
+  val message = s"expected to find at most ${max} ${elementName} elements at ${path.mkString("/")}, but found only ${actual}"
+
+  def atPath(additionalPath: Seq[String]): ParseError =
+    TooManyElements(path = additionalPath ++ path, elementName, max, actual)
+}
+
 class MissingOneOfElements(val path: Seq[String], val possibilities: Seq[String]) extends MissingValues {
   val message = s"expected ${path.mkString("/")} to contain one of ${possibilities.mkString(", ")}"
 

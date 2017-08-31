@@ -15,51 +15,51 @@ import
     Validated.{Invalid, Valid}
 
 object XmlReader {
-  def booleanReader(name: String): XmlReader[Boolean] =
+  def booleanReader(name: String): XmlReader[Element, Boolean] =
     validReader(name, _.toBoolean)
 
-  def characterReader(name: String): XmlReader[Option[Char]] =
+  def characterReader(name: String): XmlReader[Element, Option[Char]] =
     new OptionalAttributeReader(name).map(_.flatMap(textToOption).flatMap(_.headOption))
 
-  def colorReader(name: String): XmlReader[RgbColor] =
+  def colorReader(name: String): XmlReader[Element, RgbColor] =
     new AttributeReader(name).flatMap(hexColorToRgbColor(name))
 
-  def pointsReader(name: String): XmlReader[Seq[(Int, Int)]] =
+  def pointsReader(name: String): XmlReader[Element, Seq[(Int, Int)]] =
     new AttributeReader(name).flatMap(textToPointsSequence(name))
 
-  def doubleReader(name: String): XmlReader[Double] =
+  def doubleReader(name: String): XmlReader[Element, Double] =
     validReader(name, _.toDouble)
 
-  def enumReader[A](options: Map[String, A])(name: String): XmlReader[A] =
+  def enumReader[A](options: Map[String, A])(name: String): XmlReader[Element, A] =
     validReader(name, options.apply)
 
-  def intReader(name: String): XmlReader[Int] =
+  def intReader(name: String): XmlReader[Element, Int] =
     validReader(name, _.toInt)
 
-  def stringReader(name: String): XmlReader[String] =
+  def stringReader(name: String): XmlReader[Element, String] =
     validReader(name, identity)
 
-  def optionalElementReader(name: String): XmlReader[Option[Element]] =
+  def optionalElementReader(name: String): XmlReader[Element, Option[Element]] =
     new OptionalElementReader(name)
 
-  def allElementReader(name: String): XmlReader[Element] =
+  def allElementReader(name: String): XmlReader[Element, Element] =
     new ChildElementReader(name)
 
-  def choiceElementReader[A](readers: Seq[XmlReader[_ <: A]]): XmlReader[A] =
+  def choiceElementReader[A](readers: Seq[XmlReader[Element, _ <: A]]): XmlReader[Element, A] =
     new ChoiceElementReader[A](readers)
 
-  def elemReader(tag: String): XmlReader[Element] =
+  def elemReader(tag: String): XmlReader[Element, Element] =
     new ElementReader(tag)
 
   // NOTE: We only support reading homogenous sequences
-  def sequenceElementReader[A](tag: String, min: Int, reader: XmlReader[A]): XmlReader[List[A]] =
+  def sequenceElementReader[A](tag: String, min: Int, reader: XmlReader[Element, A]): XmlReader[Element, List[A]] =
     new SequenceElementReader(tag, min, reader)
 
   // returns all elements read from the specified tag *and* all unread elements in the sequence
-  def chainSequenceElementReader[A](tag: String, min: Int, reader: XmlReader[A]): XmlReader[(List[A], List[Element])] =
-    null
+  def chainElementReader[A](min: Int, max: Option[Int], reader: XmlReader[Element, A]): XmlReader[Seq[Element], (Seq[A], Seq[Element])] =
+    new ChainElementReader(min, max, reader)
 
-  def validReader[A](name: String, f: String => A): XmlReader[A] =
+  def validReader[A](name: String, f: String => A): XmlReader[Element, A] =
     new AttributeReader(name).flatMap { s =>
       try { Valid(f(s)) } catch { case e: Exception => Invalid(InvalidAttribute(Seq(), name, s)) }
     }
@@ -124,14 +124,14 @@ object XmlReader {
     }
   }
 
-  class AttributeReader[A](val name: String) extends XmlReader[String] {
+  class AttributeReader[A](val name: String) extends XmlReader[Element, String] {
     def read(elem: Element): Validated[ParseError, String] =
       elem.attributes.find(_.name == name)
         .map(a => Valid(a.value))
         .getOrElse(Invalid(MissingKeys(Seq(), Seq(name))))
   }
 
-  class ChildElementReader(val name: String) extends XmlReader[Element] {
+  class ChildElementReader(val name: String) extends XmlReader[Element, Element] {
     import cats.syntax.option._
     def read(elem: Element): Validated[ParseError, Element] =
       elem.children.collect {
@@ -140,7 +140,7 @@ object XmlReader {
         .toValid(MissingElement(Seq(), name))
   }
 
-  class ChoiceElementReader[A](choiceReaders: Seq[XmlReader[_ <: A]]) extends XmlReader[A] {
+  class ChoiceElementReader[A](choiceReaders: Seq[XmlReader[Element, _ <: A]]) extends XmlReader[Element, A] {
     val name = s"choice content"
     def read(elem: Element): Validated[ParseError, A] = {
       choiceReaders.map(_.read(elem))
@@ -153,19 +153,19 @@ object XmlReader {
     }
   }
 
-  class ElementReader(tag: String) extends XmlReader[Element] {
+  class ElementReader(tag: String) extends XmlReader[Element, Element] {
     val name = tag
 
     def read(elem: Element): Validated[ParseError, Element] =
       if (elem.tag == tag) Valid(elem) else Invalid(MissingElement(tag))
   }
 
-  class OptionalAttributeReader[A](val name: String) extends XmlReader[Option[String]] {
+  class OptionalAttributeReader[A](val name: String) extends XmlReader[Element, Option[String]] {
     def read(elem: Element): Validated[ParseError, Option[String]] =
       Valid(elem.attributes.find(_.name == name).map(_.value))
   }
 
-  class OptionalElementReader(val name: String) extends XmlReader[Option[Element]] {
+  class OptionalElementReader(val name: String) extends XmlReader[Element, Option[Element]] {
     def read(elem: Element): Validated[ParseError, Option[Element]] =
       Valid(
       elem.children.collect {
@@ -173,7 +173,7 @@ object XmlReader {
       }.headOption)
   }
 
-  class SequenceElementReader[A](tag: String, min: Int, reader: XmlReader[A]) extends XmlReader[List[A]] {
+  class SequenceElementReader[A](tag: String, min: Int, reader: XmlReader[Element, A]) extends XmlReader[Element, List[A]] {
     import cats.instances.list._
 
     val name = s"$tag sequence content"
@@ -196,17 +196,44 @@ object XmlReader {
       }
     }
   }
+
+  class ChainElementReader[A](min: Int, max: Option[Int], reader: XmlReader[Element, A]) extends XmlReader[Seq[Element], (Seq[A], Seq[Element])] {
+    val name = s"${reader.name} sequence content"
+
+    private def readyForReturn(elems: Seq[Element], acc: Seq[A]): Validated[ParseError, (Seq[A], Seq[Element])] =
+      if (acc.length < min)
+        Invalid(TooFewElements(Seq(), reader.name, min, acc.length))
+      else if (max.exists(_ < acc.length))
+        Invalid(TooManyElements(Seq(), reader.name, max.get, acc.length))
+      else
+        Valid((acc, elems))
+
+
+    @scala.annotation.tailrec
+    private def readRec(elems: Seq[Element], acc: Seq[A]): Validated[ParseError, (Seq[A], Seq[Element])] =
+      if (elems.isEmpty)
+        readyForReturn(elems, acc)
+      else
+        reader.read(elems.head) match {
+          case Valid(a) => readRec(elems.tail, acc :+ a)
+          case Invalid(m: MissingElement) => readyForReturn(elems, acc)
+          case i: Invalid[ParseError] => i
+        }
+
+    def read(elems: Seq[Element]): Validated[ParseError, (Seq[A], Seq[Element])] =
+      readRec(elems, Seq())
+  }
 }
 
-trait XmlReader[+A] {
+trait XmlReader[A, +B] {
   def name: String
-  def read(elem: Element): Validated[ParseError, A]
-  def map[B](f: A => B): XmlReader[B] = new WrappingXmlReader(this, (a: A) => Valid(f(a)))
-  def flatMap[B](f: A => Validated[ParseError, B]): XmlReader[B] =
-    new WrappingXmlReader(this, (a: A) => f(a))
+  def read(elem: A): Validated[ParseError, B]
+  def map[C](f: B => C): XmlReader[A, C] = new WrappingXmlReader(this, (b: B) => Valid(f(b)))
+  def flatMap[C](f: B => Validated[ParseError, C]): XmlReader[A, C] =
+    new WrappingXmlReader(this, (b: B) => f(b))
   def path: Seq[String] = Seq()
-  def atPath(path: Seq[String]): XmlReader[A] = new PathedXmlReader(this, path)
-  def atPath(path: String): XmlReader[A] = atPath(Seq(path))
+  def atPath(path: Seq[String]): XmlReader[A, B] = new PathedXmlReader(this, path)
+  def atPath(path: String): XmlReader[A, B] = atPath(Seq(path))
 }
 
 // we want to be able to express reading sequences as a chain of readers
@@ -218,16 +245,16 @@ trait XmlReader[+A] {
 // * It must be pathable
 // * It must be mappable
 
-class WrappingXmlReader[A, B](wrappedReader: XmlReader[A], f: A => Validated[ParseError, B]) extends XmlReader[B] {
+class WrappingXmlReader[A, B, C](wrappedReader: XmlReader[A, B], f: B => Validated[ParseError, C]) extends XmlReader[A, C] {
   def name = wrappedReader.name
 
-  def read(elem: Element): Validated[ParseError, B] =
+  def read(elem: A): Validated[ParseError, C] =
     wrappedReader.read(elem).andThen(f)
 }
 
-class PathedXmlReader[A](wrappedReader: XmlReader[A], override val path: Seq[String]) extends XmlReader[A] {
+class PathedXmlReader[A, B](wrappedReader: XmlReader[A, B], override val path: Seq[String]) extends XmlReader[A, B] {
   def name = wrappedReader.name
-  def read(elem: Element): Validated[ParseError, A] =
+  def read(elem: A): Validated[ParseError, B] =
     wrappedReader.read(elem).bimap(_.atPath(path), identity)
-  override def atPath(newPath: Seq[String]): XmlReader[A] = new PathedXmlReader(this, newPath ++ path)
+  override def atPath(newPath: Seq[String]): XmlReader[A, B] = new PathedXmlReader(this, newPath ++ path)
 }

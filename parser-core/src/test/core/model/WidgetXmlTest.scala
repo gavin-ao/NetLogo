@@ -9,10 +9,6 @@ import org.nlogo.core.{ AgentKind, Button, Chooser,
 
 import org.scalatest.FunSuite
 
-import
-  cats.data.Validated.Invalid
-
-
 object WidgetXmlTest {
   import DummyXML._
 

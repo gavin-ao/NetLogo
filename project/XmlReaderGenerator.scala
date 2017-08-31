@@ -371,7 +371,7 @@ object XmlReaderGenerator {
     class ReaderGenerator(val complexType: ComplexType, val methodIndentLevel: Int = 2) extends DeclGenerator with AssignmentGenerator {
       val (base, name) =
         if (complexType.isTopType) ("Reader", "")
-        else (s"XmlReader[${complexType.klassName}]", s"""val name = "${complexType.name}"""")
+        else (s"XmlReader[Element, ${complexType.klassName}]", s"""val name = "${complexType.name}"""")
 
       val widgetName = complexType.name.capitalize
 
