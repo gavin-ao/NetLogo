@@ -54,6 +54,23 @@ object ShapeXmlTest {
   val multiShapeTurtleXml =
     emptyTurtleXml.copy(children = Seq(Elem("elements", Seq(), Seq(circleXml, lineXml, polygonXml, rectangleXml))))
 
+  // offset is typically one of { -0.2, 0.0, 0.2 }
+  def linkLineXml(offset: Double): Elem =
+    Elem("linkLine",
+      Seq(Attr("offset", offset.toString), Attr("isVisible", "true"), Attr("stroke-dasharray", "1,0")),
+      Seq())
+
+  def linkLine(offset: Double): ParsedLinkLine =
+    ParsedLinkLine(offset, true, Seq(1.0f, 0.0f))
+
+  val linkShapeXml =
+    Elem("linkShape",
+      Seq(Attr("name", "foo"), Attr("curviness", "0")),
+      Seq(linkLineXml(-0.2), linkLineXml(0.0), linkLineXml(0.2), rectTurtleXml))
+
+  val linkShape =
+    ParsedLinkShape("foo", 0, Seq(linkLine(-0.2), linkLine(0.0), linkLine(0.2)), rectTurtle)
+
   def shapeWith(e: CoreElement, t: TurtleShape = emptyTurtleShape): TurtleShape =
     t.copy(elements = t.elements :+ e)
 

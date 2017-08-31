@@ -3,7 +3,7 @@
 package org.nlogo.core.model
 
 import org.nlogo.core.{ RgbColor, Shape },
-  Shape.{ Circle => CoreCircle, Element => CoreElement, Line => CoreLine, LinkLine => CoreLinkLine, LinkShape,
+  Shape.{ Circle => CoreCircle, Element => CoreElement, Line => CoreLine, LinkLine => CoreLinkLine, LinkShape => CoreLinkShape,
     Polygon => CorePolygon, Rectangle => CoreRectangle, RgbColor, VectorShape }
 
 case class TurtleShape(
@@ -50,3 +50,16 @@ case class RectangleElem(
     def upperLeftCorner = (x, y)
     def lowerRightCorner = (x + width, y + height)
   }
+
+case class ParsedLinkShape(
+  var name:    String,
+  curviness:   Double,
+  linkLines:   Seq[ParsedLinkLine],
+  turtleShape: TurtleShape) extends CoreLinkShape {
+    val indicator = turtleShape
+  }
+
+case class ParsedLinkLine(
+  xcor:        Double,
+  isVisible:   Boolean,
+  dashChoices: Seq[Float]) extends CoreLinkLine

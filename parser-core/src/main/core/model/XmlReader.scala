@@ -52,8 +52,12 @@ object XmlReader {
     new ElementReader(tag)
 
   // NOTE: We only support reading homogenous sequences
-  def sequenceElementReader[A](widgetType: String, min: Int, reader: XmlReader[A]): XmlReader[List[A]] =
-    new SequenceElementReader(widgetType, min, reader)
+  def sequenceElementReader[A](tag: String, min: Int, reader: XmlReader[A]): XmlReader[List[A]] =
+    new SequenceElementReader(tag, min, reader)
+
+  // returns all elements read from the specified tag *and* all unread elements in the sequence
+  def chainSequenceElementReader[A](tag: String, min: Int, reader: XmlReader[A]): XmlReader[(List[A], List[Element])] =
+    null
 
   def validReader[A](name: String, f: String => A): XmlReader[A] =
     new AttributeReader(name).flatMap { s =>
@@ -169,24 +173,24 @@ object XmlReader {
       }.headOption)
   }
 
-  class SequenceElementReader[A](widgetType: String, min: Int, reader: XmlReader[A]) extends XmlReader[List[A]] {
+  class SequenceElementReader[A](tag: String, min: Int, reader: XmlReader[A]) extends XmlReader[List[A]] {
     import cats.instances.list._
 
-    val name = s"$widgetType sequence content"
+    val name = s"$tag sequence content"
 
     def read(elem: Element): Validated[ParseError, List[A]] = {
-      if (elem.tag != widgetType) {
-        Invalid(new MissingElement(Seq(widgetType), reader.name))
+      if (elem.tag != tag) {
+        Invalid(new MissingElement(Seq(tag), reader.name))
       } else {
         val childElems = elem.children.collect {
           case e: Element => reader.read(e)
         }.toList
         if (childElems.length < min)
-          Invalid(new MissingElement(Seq(widgetType), reader.name))
+          Invalid(new MissingElement(Seq(tag), reader.name))
         else
           Applicative[({ type l[A] = Validated[ParseError, A] })#l].sequence(childElems)
             .bimap({
-              case m: MissingElement => new MissingElement(Seq(widgetType), reader.name)
+              case m: MissingElement => new MissingElement(Seq(tag), reader.name)
               case other => other
             }, identity)
       }
@@ -204,6 +208,15 @@ trait XmlReader[+A] {
   def atPath(path: Seq[String]): XmlReader[A] = new PathedXmlReader(this, path)
   def atPath(path: String): XmlReader[A] = atPath(Seq(path))
 }
+
+// we want to be able to express reading sequences as a chain of readers
+// [B](Seq[E] => (E => F[B]) => F[(Seq[B], Seq[E])])
+//
+// At the moment, all of our readers are [B](E => F[B])
+//
+// We need to introduce some new type of reader that still follows several basic rules:
+// * It must be pathable
+// * It must be mappable
 
 class WrappingXmlReader[A, B](wrappedReader: XmlReader[A], f: A => Validated[ParseError, B]) extends XmlReader[B] {
   def name = wrappedReader.name

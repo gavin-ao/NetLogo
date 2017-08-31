@@ -38,6 +38,14 @@ class XmlReaderTest extends FunSuite {
     assertResult(Invalid(MissingElement(Seq("seq"), "a")))(reader.read(seqB))
   }
 
+  test("xml chain sequence reader reads empty xml element") {
+    val seqEmpty = Elem("seq", Seq(), Seq())
+
+    val reader = XmlReader.chainSequenceElementReader("seq", 0, XmlReader.elemReader("a").map(XmlReader.childText _))
+
+    assertResult(Valid((Seq(), Seq())))(reader.read(seqEmpty))
+  }
+
   test("xml pointsReader") {
     val xml = Elem("x", Seq(Attr("points", "1,2 4,5 7,9")), Seq())
     val missingNumXml = Elem("x", Seq(Attr("points", "1,")), Seq())

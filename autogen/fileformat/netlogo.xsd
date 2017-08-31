@@ -392,7 +392,7 @@
       <xsd:element name="pens" minOccurs="1">
         <xsd:complexType>
           <xsd:annotation>
-            <xsd:appinfo className="List[Pen]" />
+            <xsd:appinfo passThrough="true" className="List[Pen]" />
           </xsd:annotation>
           <xsd:sequence>
             <xsd:element ref="pen" minOccurs="0" maxOccurs="unbounded" />
@@ -491,7 +491,7 @@
 
   <xsd:complexType name="turtleShape">
     <xsd:annotation>
-      <xsd:appinfo className="TurtleShape" import="false" additionalImports="Shape.VectorShape" />
+      <xsd:appinfo className="TurtleShape" import="false" additionalImports="Shape" />
     </xsd:annotation>
     <xsd:all>
       <xsd:element name="elements" type="elements" />
@@ -560,7 +560,7 @@
 
   <xsd:complexType name="polygon">
     <xsd:annotation>
-      <xsd:appinfo className="PolygonElem" import="false" additionalImports="Shape.Polygon" />
+      <xsd:appinfo className="PolygonElem" import="false" />
     </xsd:annotation>
     <xsd:attribute name="points" type="svg:PointsType" use="required" />
     <xsd:attributeGroup ref="ShapeElement"/>
@@ -568,24 +568,37 @@
 
   <xsd:complexType name="linkShape">
     <xsd:annotation>
-      <xsd:appinfo import="false" additionalImports="Shape.LinkShape" />
+      <xsd:appinfo className="ParsedLinkShape" import="false" />
     </xsd:annotation>
     <xsd:sequence>
-      <xsd:element name="linkLine" type="LinkLine" minOccurs="3" maxOccurs="3" />
-      <xsd:element name="indicator" maxOccurs="1" type="turtleShape" />
+      <!-- TODO: See if we can separate name/type so we can rename these -->
+      <xsd:element name="linkLine" type="linkLine" minOccurs="3" maxOccurs="3">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="linkLines" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="turtleShape" type="turtleShape" minOccurs="1" maxOccurs="1" />
     </xsd:sequence>
     <xsd:attribute name="name" type="xsd:string" use="required" />
     <xsd:attribute name="curviness" type="xsd:double" use="required" />
   </xsd:complexType>
 
-  <xsd:complexType name="LinkLine">
+  <xsd:complexType name="linkLine">
     <xsd:annotation>
-      <xsd:appinfo import="false" />
+      <xsd:appinfo className="ParsedLinkLine" import="false" />
     </xsd:annotation>
     <xsd:all>
-      <xsd:attribute name="offset" type="xsd:float" use="required"/>
+      <xsd:attribute name="offset" type="xsd:float" use="required">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="xcor" />
+        </xsd:annotation>
+      </xsd:attribute>
       <xsd:attribute name="isVisible" type="xsd:boolean" use="required" />
-      <xsd:attribute name="stroke-dasharray" type="svg:StrokeDashArrayValueType" use="required"/>
+      <xsd:attribute name="stroke-dasharray" type="svg:StrokeDashArrayValueType" use="required">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="dashChoices" />
+        </xsd:annotation>
+      </xsd:attribute>
     </xsd:all>
   </xsd:complexType>
 

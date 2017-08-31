@@ -45,7 +45,7 @@ object XmlReaderGenerator {
      )
     }
 
-    val shapeNames = Seq("circle", "elements", "line", "polygon", "rect", "turtleShape") // "LinkLine", "linkShape", "polygon", "rectangle", "line", "circle")
+    val shapeNames = Seq("circle", "elements", "line", /* "linkLine", "linkShape", */ "polygon", "rect", "turtleShape")
     val miscNames = Seq("choices", "chooseable", "dimensions", "listChoice", "listContents", "numericData", "pen", "stringData")
     val widgetNames = Seq("button", "chooser", "numericInput", "monitor", "output", "plot", "slider", "switch", "textbox", "view", "stringInput")
 
@@ -139,14 +139,18 @@ object XmlReaderGenerator {
     //  * Potentially - move boilerplate to separate text file
     //
     // Notes for tuesday:
-    // * Lots of unused imports in ShapesXml
     // * Still need to figure out link shapes
-    // * we *could* redesign the types of classes produced by this to allow instantiation of pass-through sequence readers/writers wherein those readers/writers took the name of sequence element
-    // they were parsing. This would allow for elements to be properly renamed.
-    // e.g. right now `<element name="fooBar" type="foo">` won't work because FooReader expects
-    // the element passed in to have tag "foo". This certainly has potential applications beyond
-    // sequence readers, I've just noticed it most looking at sequence readers, since those seem to
-    // be the primary "pass-through readers
+    // * we *could* redesign the types of classes produced by this to allow instantiation of pass-through
+    //   sequence readers/writers wherein those readers/writers took the name of sequence element
+    //   they were parsing. This would allow for elements to be properly renamed.
+    //   e.g. right now `<element name="fooBar" type="foo">` won't work because FooReader expects
+    //   the element passed in to have tag "foo". This certainly has potential applications beyond
+    //   sequence readers, I've just noticed it most looking at sequence readers, since those seem to
+    //   be the primary "pass-through readers
+    // * figure out how to deal with Shapes being written which are not specifically the type read
+    //
+    // Idea: SequenceReader[A], have it return Valid[(A, Seq[Element])] - if it's successful it returns it's return type and
+    // the elements it *did not* consume. This is probably flexible enough to accomodate the general sequence-reading case.
 
     // AttributeGroup represents an xml schema attribute group
     case class AttributeGroup(name: String, attributes: Seq[SpecifiedAttribute])
@@ -551,8 +555,12 @@ object XmlReaderGenerator {
                 generator.write(writer)
             }
         case Sequence(e: ElementDefinition, _, _) =>
-          val (decl, _) = specifiedElementWriter(s"v")(resolveElement(types)(e))
-          generator.write(s".withElementList(${varName}.map(v => ${decl.assignedValue}))")
+          val resolvedElem = resolveElement(types)(e)
+          val (decl, _) = specifiedElementWriter(s"v")(resolvedElem)
+          val declaredName = s"${resolvedElem.fieldName}Elem"
+          val variable = if (content.isPassThrough) varName else s"${varName}.${resolvedElem.fieldName}"
+          generator.declare(declaredName, s"${variable}.map(v => ${decl.assignedValue})")
+          generator.write(s".withElementList($declaredName)")
         case Sequence(c: Choice, _, _) =>
           val fn = choiceCoercionFunction(c)
           generator.write(s".withElementList(${varName}.map(e => ${fn}(e, factory)))")
