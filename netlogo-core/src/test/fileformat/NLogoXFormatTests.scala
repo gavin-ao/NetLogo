@@ -14,7 +14,7 @@ import
 import
   org.nlogo.core.{ Button, DummyCompilationEnvironment, DummyExtensionManager, model, Model, Shape, View, Widget },
     model.XmlShape,
-    Shape.VectorShape
+    Shape.{ LinkShape, VectorShape }
 
 import
   org.nlogo.core.model.DummyXML._
@@ -144,4 +144,12 @@ class NLogoXShapeComponentTest extends NLogoXFormatTest[Seq[VectorShape]] {
   testRoundTripsObjectForm("default-only shape list", Seq(defaultShape))
 }
 
-class NLogoXLinkShapeComponentTest extends NLogoXFormatTest[Seq[LinkShape]]
+class NLogoXLinkShapeComponentTest extends NLogoXFormatTest[Seq[LinkShape]] {
+  def subject = nlogoXFormat.linkShapesComponent
+  def modelComponent(model: Model): Seq[LinkShape] = model.linkShapes
+  def attachComponent(shapes: Seq[LinkShape]): Model = Model(linkShapes = shapes)
+
+  testDeserializes("empty link shapes to default shapes", Elem("linkShapes", Seq(), Seq()), Model.defaultLinkShapes)
+  val defaultShape = XmlShape.convertLinkShape(Model.defaultLinkShapes.find(_.name == "default").get)
+  testRoundTripsObjectForm("default-only link shape list", Seq(defaultShape))
+}

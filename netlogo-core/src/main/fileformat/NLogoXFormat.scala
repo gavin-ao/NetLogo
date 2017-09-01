@@ -122,11 +122,12 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
     }
   }
 
-  // TODO: This is pass-through, we haven't yet implemented ".nlogox" shape-reading
   object LinkShapeComponent extends ComponentSerialization[Section, NLogoXFormat] {
     val componentName = "org.nlogo.modelsection.linkshapes"
     override def addDefault = ((m: Model) => m.copy(linkShapes = Model.defaultLinkShapes.toSeq))
-    def serialize(m: Model): Section = factory.newElement("linkShapes").build
+    def serialize(m: Model): Section = factory.newElement("linkShapes")
+      .withElementList(m.linkShapes.map(s => ShapeXml.write(s, factory)))
+      .build
     def validationErrors(m: Model): Option[String] = None
     override def deserialize(shapes: Section) = { (m: Model) =>
       shapes.children
@@ -139,11 +140,12 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
           }
             case (failure, e) => failure
         }
-        .map(linkShapes => m.copy(linkShapes = linkShapes))
+        .map(linkShapes =>
+            if (linkShapes.isEmpty) addDefault(m)
+            else                    m.copy(linkShapes = linkShapes))
     }
   }
 
-  // TODO: This is pass-through, we haven't yet implemented ".nlogox" shape-reading
   object ShapeComponent extends ComponentSerialization[Section, NLogoXFormat] {
     val componentName = "org.nlogo.modelsection.turtleshapes"
     override def addDefault = _.copy(turtleShapes = Model.defaultShapes)
@@ -235,7 +237,11 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
       location
     }
   }
+
+  private def buildRootElem(sections: Map[String,Section]): Try[Element] = ???
+
   def sectionsToSource(sections: Map[String,Section]): Try[String] = ???
+
   def codeComponent: ComponentSerialization[Section,NLogoXFormat] = CodeComponent
   def infoComponent: ComponentSerialization[Section,NLogoXFormat] = InfoComponent
   def version: ComponentSerialization[Section,NLogoXFormat] = VersionComponent
