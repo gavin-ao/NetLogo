@@ -99,7 +99,6 @@ object XmlReader {
   }
 
   private def textToFloatSeq(name: String)(s: String): Validated[ParseError, Seq[Float]] = {
-    import cats.instances.list._
     try {
       Valid(s.split(",").map(_.toFloat))
     } catch {
@@ -120,6 +119,10 @@ object XmlReader {
     val baseHexString = Integer.toHexString(i)
     val leadingZeros = 6 - baseHexString.length
     s"#${"0" * leadingZeros}${baseHexString}".toUpperCase
+  }
+
+  def dashArrayToString(a: Seq[Float]): String = {
+    a.map(_.toString).mkString(",")
   }
 
   private def hexColorToRgbColor(keyName: String)(hexString: String): Validated[ParseError, RgbColor] = {

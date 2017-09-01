@@ -603,6 +603,30 @@ object XmlReaderGenerator {
         case Sequence(Seq(c: Choice), _, _) =>
           val fn = choiceCoercionFunction(c)
           generator.write(s".withElementList(${varName}.map(e => ${fn}(e, factory)))")
+        case Sequence(es, _, _) =>
+          def writeSeqElement(e: SequenceChild): Unit =
+            e match {
+              case e: ElementDefinition =>
+                val resolvedElem = resolveElement(types)(e)
+                if (resolvedElem.min == 1 && resolvedElem.max == Some(1)) {
+                  val (decl, writer) =
+                    specifiedElementWriter(s"${varName}.${resolvedElem.fieldName}")(resolvedElem)
+                  generator.declare(decl)
+                  generator.write(writer)
+                } else {
+                  val (decl, _) = specifiedElementWriter(s"v")(resolvedElem)
+                  val declaredName = s"${resolvedElem.fieldName}Elem"
+                  val variable =
+                    if (content.isPassThrough) varName
+                    else                       s"${varName}.${resolvedElem.fieldName}"
+                    generator.declare(declaredName, s"${variable}.map(v => ${decl.assignedValue})")
+                    generator.write(s".withElementList($declaredName)")
+                }
+              case c: Choice =>
+                val fn = choiceCoercionFunction(c)
+                generator.write(s".withElementList(${varName}.map(e => ${fn}(e, factory)))")
+            }
+          es.foreach(writeSeqElement)
         case c: Choice =>
           val fn = choiceCoercionFunction(c)
           generator.declare(s"${c.fieldName}Elem", s"${fn}(${varName}, factory)")
@@ -668,6 +692,7 @@ object XmlReaderGenerator {
               case DataType.Double => toResult({ v => s"XmlReader.rgbColorToHex(XmlReader.doubleToRgbColor(${v}))" })
               case _ => toResult({ v => s"XmlReader.rgbColorToHex(${v})" })
             }
+          case DataType.DashArray => toResult({ v => s"XmlReader.dashArrayToString(${v})" })
           case DataType.RestrictionType(_, resultType, Restriction.Enum(options)) =>
             val typeName = resultType.toLowerCase.split('.').last
             val matchLines =

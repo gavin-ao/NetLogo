@@ -57,7 +57,7 @@ object ShapeXmlTest {
   // offset is typically one of { -0.2, 0.0, 0.2 }
   def linkLineXml(offset: Double): Elem =
     Elem("linkLine",
-      Seq(Attr("offset", offset.toString), Attr("isVisible", "true"), Attr("stroke-dasharray", "1,0")),
+      Seq(Attr("offset", offset.toString), Attr("isVisible", "true"), Attr("stroke-dasharray", "1.0,0.0")),
       Seq())
 
   def linkLine(offset: Double): ParsedLinkLine =
