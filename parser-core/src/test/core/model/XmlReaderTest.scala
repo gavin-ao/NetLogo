@@ -91,4 +91,17 @@ class XmlReaderTest extends FunSuite {
     assertResult(Invalid(InvalidAttribute("points", "1,abc")))(reader.read(invalidNumXml))
     assertResult(Invalid(InvalidAttribute("points", "1,2,3")))(reader.read(threeNumXml))
   }
+
+  test("xml dashArrayReader") {
+    val xml = Elem("x", Seq(Attr("dashes", "0,1,2,3")), Seq())
+    val emptyStringXml = Elem("x", Seq(Attr("dashes", "")), Seq())
+    val blankStringXml = Elem("x", Seq(Attr("dashes", " ")), Seq())
+    val invalidNumXml = Elem("x", Seq(Attr("dashes", "1,abc")), Seq())
+    val reader = XmlReader.dashArrayReader("dashes")
+
+    assertResult(Valid(Seq(0.0f, 1.0f, 2.0f, 3.0f)))(reader.read(xml))
+    assertResult(Invalid(InvalidAttribute("dashes", "")))(reader.read(emptyStringXml))
+    assertResult(Invalid(InvalidAttribute("dashes", " ")))(reader.read(blankStringXml))
+    assertResult(Invalid(InvalidAttribute("dashes", "1,abc")))(reader.read(invalidNumXml))
+  }
 }

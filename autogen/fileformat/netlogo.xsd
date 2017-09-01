@@ -587,19 +587,17 @@
     <xsd:annotation>
       <xsd:appinfo className="ParsedLinkLine" import="false" />
     </xsd:annotation>
-    <xsd:all>
-      <xsd:attribute name="offset" type="xsd:float" use="required">
-        <xsd:annotation>
-          <xsd:appinfo fieldName="xcor" />
-        </xsd:annotation>
-      </xsd:attribute>
-      <xsd:attribute name="isVisible" type="xsd:boolean" use="required" />
-      <xsd:attribute name="stroke-dasharray" type="svg:StrokeDashArrayValueType" use="required">
-        <xsd:annotation>
-          <xsd:appinfo fieldName="dashChoices" />
-        </xsd:annotation>
-      </xsd:attribute>
-    </xsd:all>
+    <xsd:attribute name="offset" type="xsd:double" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="xcor" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="isVisible" type="xsd:boolean" use="required" />
+    <xsd:attribute name="stroke-dasharray" type="svg:StrokeDashArrayValueType" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="dashChoices" />
+      </xsd:annotation>
+    </xsd:attribute>
   </xsd:complexType>
 
   <xsd:attributeGroup name="Positioned">

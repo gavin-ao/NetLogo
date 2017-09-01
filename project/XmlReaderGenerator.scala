@@ -186,7 +186,8 @@ object XmlReaderGenerator {
           "xsd:positiveInteger"    -> Integer,
           "xsd:nonNegativeInteger" -> Integer,
           "xsd:string"             -> String,
-          "xsd:double"             -> Double
+          "xsd:double"             -> Double,
+          "svg:StrokeDashArrayValueType" -> DashArray
         )
 
         namesToType.getOrElse(s, DeferredType(s))
@@ -202,6 +203,10 @@ object XmlReaderGenerator {
       case object Color extends DataType {
         val attributeReaderName = Some("colorReader")
         val className = "RgbColor"
+      }
+      case object DashArray extends DataType {
+        val attributeReaderName = Some("dashArrayReader")
+        val className = "Seq[Float]"
       }
       case object Points extends DataType {
         val attributeReaderName = Some("pointsReader")
@@ -321,7 +326,7 @@ object XmlReaderGenerator {
             else s"${f} = ${a.varName}"
           }).mkString(", ")
 
-        if (assignments.isEmpty) Seq("null")
+        if (assignments.isEmpty) { throw new Exception("invalid type: " + complexType) } //  Seq("null")
         else if (complexType.content.isPassThrough) Seq((" " * (methodIndentLevel + 2)) + assignments.head.readExpression)
         else {
           val addPath =
@@ -721,10 +726,12 @@ object XmlReaderGenerator {
     def generateComplexTypeReader(types: Map[String, ComplexType])(spec: ComplexType): String = {
       implicit val tpes = types
       val generator = new ReaderGenerator(spec, 4)
-      val aReaderDecls =
-        spec.content.attributes.map(attr => generator.declare(s"${attr.name}Reader", generateAttributeReader(attr)))
       val aReaderAssignments =
-        spec.content.attributes.map(attr => generator.assignment(s"${attr.name}Reader.read(xml)", Seq(attr.fieldName), attr.name))
+        spec.content.attributes.map { attr =>
+          val scalaSafeName = attr.name.replaceAllLiterally("-", "")
+          generator.declare(s"${scalaSafeName}Reader", generateAttributeReader(attr))
+          generator.assignment(s"${scalaSafeName}Reader.read(xml)", Seq(attr.fieldName), scalaSafeName)
+        }
       generateContentReader(spec.name, spec.content, generator)
       generator.buildReader
     }

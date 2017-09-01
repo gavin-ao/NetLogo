@@ -65,7 +65,7 @@ object ShapeXmlTest {
 
   val linkShapeXml =
     Elem("linkShape",
-      Seq(Attr("name", "foo"), Attr("curviness", "0")),
+      Seq(Attr("name", "foo"), Attr("curviness", "0.0")),
       Seq(linkLineXml(-0.2), linkLineXml(0.0), linkLineXml(0.2), rectTurtleXml))
 
   val linkShape =
@@ -141,6 +141,6 @@ class ShapeXmlTest extends FunSuite {
   }
 
   test("writes link shapes") {
-    pending
+    assertResult(linkShapeXml)(writeToXml(linkShape))
   }
 }

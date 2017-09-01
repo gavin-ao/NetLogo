@@ -27,6 +27,9 @@ object XmlReader {
   def pointsReader(name: String): XmlReader[Element, Seq[(Int, Int)]] =
     new AttributeReader(name).flatMap(textToPointsSequence(name))
 
+  def dashArrayReader(name: String): XmlReader[Element, Seq[Float]] =
+    new AttributeReader(name).flatMap(textToFloatSeq(name))
+
   def doubleReader(name: String): XmlReader[Element, Double] =
     validReader(name, _.toDouble)
 
@@ -90,6 +93,15 @@ object XmlReader {
           Invalid(InvalidAttribute(Seq(), name, s))
         }
       }
+    } catch {
+      case e: Exception => Invalid(InvalidAttribute(Seq(), name, s))
+    }
+  }
+
+  private def textToFloatSeq(name: String)(s: String): Validated[ParseError, Seq[Float]] = {
+    import cats.instances.list._
+    try {
+      Valid(s.split(",").map(_.toFloat))
     } catch {
       case e: Exception => Invalid(InvalidAttribute(Seq(), name, s))
     }
