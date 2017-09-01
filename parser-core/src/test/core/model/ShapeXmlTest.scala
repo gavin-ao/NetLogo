@@ -137,7 +137,7 @@ class ShapeXmlTest extends FunSuite {
   }
 
   test("reads link shapes") {
-    pending
+    assertResult(linkShape)(readFromXml(linkShapeXml))
   }
 
   test("writes link shapes") {

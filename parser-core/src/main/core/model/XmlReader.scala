@@ -51,6 +51,9 @@ object XmlReader {
   def elemReader(tag: String): XmlReader[Element, Element] =
     new ElementReader(tag)
 
+  def childrenElemReader: XmlReader[Element, Seq[Element]] =
+    new ChildrenElementReader()
+
   // NOTE: We only support reading homogenous sequences
   def sequenceElementReader[A](tag: String, min: Int, reader: XmlReader[Element, A]): XmlReader[Element, List[A]] =
     new SequenceElementReader(tag, min, reader)
@@ -194,6 +197,14 @@ object XmlReader {
               case other => other
             }, identity)
       }
+    }
+  }
+
+  class ChildrenElementReader extends XmlReader[Element, Seq[Element]] {
+    val name = s"children"
+
+    def read(elem: Element): Validated[ParseError, Seq[Element]] = {
+      Valid(elem.children.collect { case e: Element => e })
     }
   }
 

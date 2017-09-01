@@ -45,7 +45,7 @@ object XmlReaderGenerator {
      )
     }
 
-    val shapeNames = Seq("circle", "elements", "line", /* "linkLine", "linkShape", */ "polygon", "rect", "turtleShape")
+    val shapeNames = Seq("circle", "elements", "line", "linkLine", "linkShape", "polygon", "rect", "turtleShape")
     val miscNames = Seq("choices", "chooseable", "dimensions", "listChoice", "listContents", "numericData", "pen", "stringData")
     val widgetNames = Seq("button", "chooser", "numericInput", "monitor", "output", "plot", "slider", "switch", "textbox", "view", "stringInput")
 
@@ -274,11 +274,10 @@ object XmlReaderGenerator {
     case class All(elements: Seq[ElementDefinition]) extends ComplexTypeElements
     case class Choice(elements: Seq[ElementDefinition], fieldName: String, klassName: Option[String], isPassThrough: Boolean = false) extends ComplexTypeElements with SequenceChild
     // NOTE: At the moment we only support reading homogenous sequences
-    case class Sequence(child: SequenceChild, fieldName: Option[String], variadic: Boolean) extends ComplexTypeElements {
+    case class Sequence(children: Seq[SequenceChild], fieldName: Option[String], variadic: Boolean) extends ComplexTypeElements {
       def elements =
-        child match {
-          case elem: ElementDefinition => Seq(elem)
-          case _ => Seq()
+        children.collect {
+          case elem: ElementDefinition => elem
         }
     }
     case class SimpleContent(baseType: DataType, fieldName: String) extends ComplexTypeElements {
@@ -287,7 +286,7 @@ object XmlReaderGenerator {
 
     // these classes represent program statements
     case class Decl(name: String, assignedValue: String)
-    case class Assignment(readerName: String, fieldNames: Seq[String], varName: String, variadic: Boolean = false)
+    case class Assignment(readExpression: String, fieldNames: Seq[String], varName: String, variadic: Boolean = false)
     case class CoercionFunction(name: String, inputs: Seq[(String, String)], outputType: String, lines: Seq[String])
 
     implicit class RichNodeSeq(nodeSeq: NodeSeq) {
@@ -311,8 +310,8 @@ object XmlReaderGenerator {
       def complexType: ComplexType
       var assignmentMap: Map[String, Assignment] = scala.collection.immutable.ListMap.empty[String, Assignment]
       // the last assignment takes precedence
-      def assignment(readerName: String, fieldNames: Seq[String], varName: String, variadic: Boolean = false): Unit = {
-        assignmentMap = assignmentMap + (varName -> Assignment(readerName, fieldNames, varName, variadic))
+      def assignment(readExpression: String, fieldNames: Seq[String], varName: String, variadic: Boolean = false): Unit = {
+        assignmentMap = assignmentMap + (varName -> Assignment(readExpression, fieldNames, varName, variadic))
       }
       def assignments = assignmentMap.values.toSeq
       def assignmentStrings: Seq[String] = {
@@ -323,7 +322,7 @@ object XmlReaderGenerator {
           }).mkString(", ")
 
         if (assignments.isEmpty) Seq("null")
-        else if (complexType.content.isPassThrough) Seq((" " * (methodIndentLevel + 2)) + s"${assignments.head.readerName}.read(xml)")
+        else if (complexType.content.isPassThrough) Seq((" " * (methodIndentLevel + 2)) + assignments.head.readExpression)
         else {
           val addPath =
             if (complexType.content.elements.isInstanceOf[Choice]) ""
@@ -333,7 +332,7 @@ object XmlReaderGenerator {
             else s"Apply[ReadValidation#l].map${assignments.length}"
           Seq(
             s"$applyMap(",
-            s"  ${assignments.map(_.readerName).map(r => s"${r}.read(xml)").mkString(", ")}",
+            s"  ${assignments.map(_.readExpression).mkString(", ")}",
              ") {",
             s"  case (${assignments.map(_.varName).mkString(", ")}) =>",
             s"    ${complexType.klassName}(${renderedAssignments})",
@@ -502,12 +501,13 @@ object XmlReaderGenerator {
           (elems.map(elem => generator.declare(s"${elem.name}Reader", generateAllElementReader(elem))),
             elems.map { e =>
               val varNames = Seq(e.fieldName) ++ e.additionalField.map(f => Seq(f)).getOrElse(Seq.empty[String])
-              generator.assignment(s"${e.name}Reader", varNames, e.name)
+              generator.assignment(s"${e.name}Reader.read(xml)", varNames, e.name)
             })
         case c: Choice =>
-          generator.assignment(declareChoiceReader(c, name), Seq(c.fieldName), name)
-        case Sequence(e, fieldName, variadic) =>
-          e match {
+          val readerName = declareChoiceReader(c, name)
+          generator.assignment(s"${readerName}.read(xml)", Seq(c.fieldName), name)
+        case Sequence(Seq(e), fieldName, variadic) =>
+          val subreader = e match {
             case e: ElementDefinition => declareRequiredElementReader(e)
             case c: Choice            => declareChoiceReader(c, name)
           }
@@ -521,11 +521,45 @@ object XmlReaderGenerator {
             case _ => 0
           }
           generator.declare(s"${name}SequenceReader",
-            s"""XmlReader.sequenceElementReader("${name}", ${min}, ${generator.decls.last.name})""")
-          generator.assignment(s"${name}SequenceReader", Seq(finalFieldName), name, variadic)
+            s"""XmlReader.sequenceElementReader("${name}", ${min}, ${subreader})""")
+          generator.assignment(s"${name}SequenceReader.read(xml)", Seq(finalFieldName), name, variadic)
+        case Sequence(es, fieldName, variadic) =>
+          def chainReader(elemsToReadName: String, e: SequenceChild): String = {
+            val subreader = e match {
+              case e: ElementDefinition => declareRequiredElementReader(e)
+              case c: Choice            => declareChoiceReader(c, name)
+            }
+            val min = e match {
+              case ed: ElementDefinition => ed.min
+              case _ => 0
+            }
+            val max = e match {
+              case ed: ElementDefinition => ed.max.map(i => s"Some(${i.toString})").getOrElse("None")
+              case _ => "None"
+            }
+            val fieldName = e match {
+              case se: SpecifiedElement => se.fieldName
+              case ctr: ComplexTypeReference => resolveElement(types)(ctr).fieldName
+              case c: Choice => name // <-- this seems bogus...
+            }
+            val thisReaderName = e match {
+              case r: ComplexTypeReference => r.refName
+              case e: SpecifiedElement => e.name
+              case c: Choice => c.fieldName
+            }
+            val postProcess = if (min == 1 && max == "Some(1)") ".map(_.head)" else ""
+            generator.declare(s"${thisReaderName}ChainReader", s"""XmlReader.chainElementReader(${min}, ${max}, ${subreader})""")
+            generator.declare(s"${thisReaderName}ChainResult", s"${elemsToReadName}.andThen(${thisReaderName}ChainReader.read _)")
+            generator.assignment(s"${thisReaderName}ChainResult.map(_._1)${postProcess}", Seq(fieldName), fieldName)
+            s"${thisReaderName}ChainResult.map(_._2)"
+          }
+          // tag (argument to childElemReader) may not matter?
+          es.foldLeft(s"XmlReader.childrenElemReader.read(xml)") {
+            case (toRead, e) => chainReader(toRead, e)
+          }
         case SimpleContent(baseType: DataType, fieldName) =>
           generator.declare(s"${name}ContentReader", generateSingleElementReader(name, 1, baseType))
-          generator.assignment(s"${name}ContentReader", Seq(fieldName), name)
+          generator.assignment(s"${name}ContentReader.read(xml)", Seq(fieldName), fieldName)
       }
     }
 
@@ -554,14 +588,14 @@ object XmlReaderGenerator {
                 generator.declare(decl)
                 generator.write(writer)
             }
-        case Sequence(e: ElementDefinition, _, _) =>
+        case Sequence(Seq(e: ElementDefinition), _, _) =>
           val resolvedElem = resolveElement(types)(e)
           val (decl, _) = specifiedElementWriter(s"v")(resolvedElem)
           val declaredName = s"${resolvedElem.fieldName}Elem"
           val variable = if (content.isPassThrough) varName else s"${varName}.${resolvedElem.fieldName}"
           generator.declare(declaredName, s"${variable}.map(v => ${decl.assignedValue})")
           generator.write(s".withElementList($declaredName)")
-        case Sequence(c: Choice, _, _) =>
+        case Sequence(Seq(c: Choice), _, _) =>
           val fn = choiceCoercionFunction(c)
           generator.write(s".withElementList(${varName}.map(e => ${fn}(e, factory)))")
         case c: Choice =>
@@ -690,7 +724,7 @@ object XmlReaderGenerator {
       val aReaderDecls =
         spec.content.attributes.map(attr => generator.declare(s"${attr.name}Reader", generateAttributeReader(attr)))
       val aReaderAssignments =
-        spec.content.attributes.map(attr => generator.assignment(s"${attr.name}Reader", Seq(attr.fieldName), attr.name))
+        spec.content.attributes.map(attr => generator.assignment(s"${attr.name}Reader.read(xml)", Seq(attr.fieldName), attr.name))
       generateContentReader(spec.name, spec.content, generator)
       generator.buildReader
     }
@@ -803,15 +837,19 @@ object XmlReaderGenerator {
     Choice(choiceElements, fieldName, klassName, passThrough)
   }
 
-  def parseSequenceChild(sequenceElem: Node): Option[SequenceChild] = {
-    (sequenceElem \ "choice").headOption.map(parseChoice) orElse
-      (sequenceElem \ "element").headOption.map(parseElementDefinition)
+  def parseSequenceChildren(sequenceElem: Node): Seq[SequenceChild] = {
+    sequenceElem.child.collect {
+      case e@Elem("xsd", "choice", _, _, _*)  => parseChoice(e)
+      case e@Elem("xsd", "element", _, _, _*) => parseElementDefinition(e)
+    }
   }
 
-  def parseSequence(seqElem: Node): Option[Sequence] = {
+  // TODO:
+  // * generalize all sequence readers to use chain readers
+  def parseSequence(seqElem: Node): Sequence = {
     val variadic = seqElem.appInfo("variadic").map(_.toBoolean).getOrElse(false)
     val fieldName = seqElem.appInfo("fieldName")
-    parseSequenceChild(seqElem).map(child => Sequence(child, fieldName, variadic))
+    Sequence(parseSequenceChildren(seqElem), fieldName, variadic)
   }
 
   def parseComplexType(ctElement: Node, sharedSpecs: Map[String, AttributeGroup], topTypes: Seq[String]): ComplexType = {
@@ -845,7 +883,7 @@ object XmlReaderGenerator {
         }
       val allElements = (ctElement \ "all").flatMap(parseElement)
       val choiceElement = (ctElement \ "choice").headOption.map(parseChoice)
-      val sequenceElement = (ctElement \ "sequence").headOption.flatMap(parseSequence)
+      val sequenceElement = (ctElement \ "sequence").headOption.map(parseSequence)
       val elements = choiceElement orElse sequenceElement getOrElse All(allElements)
       ComplexTypeContent(allAttributes, elements, klassName, isPassThrough, imports)
     }
