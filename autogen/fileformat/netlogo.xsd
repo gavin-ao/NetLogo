@@ -503,7 +503,7 @@
 
   <xsd:complexType name="elements">
     <xsd:annotation>
-      <xsd:appinfo className="Seq[CoreElement]" passThrough="true" import="false" />
+      <xsd:appinfo className="Seq[XmlElement]" passThrough="true" import="false" />
     </xsd:annotation>
     <xsd:sequence>
       <xsd:choice>
