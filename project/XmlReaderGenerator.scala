@@ -99,7 +99,7 @@ object XmlReaderGenerator {
 
       complexTypeSpecs.map(generateComplexTypeReader(typesMap)).foreach(append)
       append("  val readers = Map[String, Reader](")
-      append(complexTypeSpecs.filter(_.isTopType).map(s => s"""    "${s.name}" -> ${s.name.capitalize}Reader""").mkString(",\n"))
+      append(complexTypeSpecs.filter(_.isTopType).map(s => s"""    "${s.name}" -> new ${s.name.capitalize}Reader()""").mkString(",\n"))
       append("  )")
 
       append(s"  def read(xml: Element): Validated[ParseError, ${baseType}] = {")
@@ -139,7 +139,6 @@ object XmlReaderGenerator {
     //  * Potentially - move boilerplate to separate text file
     //
     // Notes for tuesday:
-    // * Still need to figure out link shapes
     // * we *could* redesign the types of classes produced by this to allow instantiation of pass-through
     //   sequence readers/writers wherein those readers/writers took the name of sequence element
     //   they were parsing. This would allow for elements to be properly renamed.
@@ -148,9 +147,6 @@ object XmlReaderGenerator {
     //   sequence readers, I've just noticed it most looking at sequence readers, since those seem to
     //   be the primary "pass-through readers
     // * figure out how to deal with Shapes being written which are not specifically the type read
-    //
-    // Idea: SequenceReader[A], have it return Valid[(A, Seq[Element])] - if it's successful it returns it's return type and
-    // the elements it *did not* consume. This is probably flexible enough to accomodate the general sequence-reading case.
 
     // AttributeGroup represents an xml schema attribute group
     case class AttributeGroup(name: String, attributes: Seq[SpecifiedAttribute])
@@ -269,8 +265,8 @@ object XmlReaderGenerator {
       def max: Option[Int]
     }
     case class SpecifiedElement(name: String, fieldName: String, additionalField: Option[String], tpe: DataType, min: Int, max: Option[Int]) extends ElementDefinition
-    // NOTE: it would be possible to add additionalField to ComplexTypeReference, but that hasn't yet been done
-    case class ComplexTypeReference(refName: String, fieldName: Option[String], min: Int, max: Option[Int]) extends ElementDefinition
+    // NOTE: it would be possible to add additionalField to ElementReference, but that hasn't yet been done
+    case class ElementReference(refName: String, fieldName: Option[String], min: Int, max: Option[Int]) extends ElementDefinition
 
     // Complex types contain one of all, choice, sequence, or simpleContent
     sealed trait ComplexTypeElements {
@@ -297,6 +293,14 @@ object XmlReaderGenerator {
     implicit class RichNodeSeq(nodeSeq: NodeSeq) {
       def appInfo(propName: String): Option[String] =
         (nodeSeq \ "annotation" \ "appinfo" \ s"@$propName").headOption.map(_.text)
+    }
+
+    implicit class RicherString(s: String) {
+      def quoted: String =
+        if (s.nonEmpty && s.head == '"' && s.last == '"')
+          s
+        else
+          s""""$s""""
     }
 
     trait DeclGenerator {
@@ -367,22 +371,22 @@ object XmlReaderGenerator {
         writers = writers :+ s
       }
       def writerStrings =
-        indent(methodIndentLevel + 2)(s"""factory.newElement("${elementName}")""") +:
+        indent(methodIndentLevel + 2)(s"""factory.newElement(name)""") +:
           writers.map(indent(methodIndentLevel + 4)) :+
           indent(methodIndentLevel + 4)(".build")
     }
 
     class ReaderGenerator(val complexType: ComplexType, val methodIndentLevel: Int = 2) extends DeclGenerator with AssignmentGenerator {
-      val (base, name) =
-        if (complexType.isTopType) ("Reader", "")
-        else (s"XmlReader[Element, ${complexType.klassName}]", s"""val name = "${complexType.name}"""")
+      val name = s"""val name: String = "${complexType.name}""""
+      val base =
+        if (complexType.isTopType) "Reader"
+        else s"XmlReader[Element, ${complexType.klassName}]"
 
       val widgetName = complexType.name.capitalize
 
       def buildReader: String =
-        s"""|  object ${widgetName}Reader extends ${base} {
+        s"""|  class ${widgetName}Reader(${name}) extends ${base} {
             |    type ReadValidation = ({ type l[A] = Validated[ParseError, A] })
-            |    $name
             |    def read(xml: Element): Validated[ParseError, ${complexType.klassName}] = {
             |${declStrings.mkString("\n")}
             |${assignmentStrings.mkString("\n")}
@@ -403,7 +407,7 @@ object XmlReaderGenerator {
         additionalWriters = additionalWriters :+ w
 
       def buildWriter: String =
-        s"""|  object ${widgetName}Writer ${base}{
+        s"""|  class ${widgetName}Writer(val name: String = ${elementName.quoted}) ${base}{
             |${coercionStrings.mkString("\n")}
             |    def write(w: ${complexType.klassName}, factory: ElementFactory): Element = {
             |${declStrings.mkString("\n")}
@@ -450,14 +454,14 @@ object XmlReaderGenerator {
     def generateSingleElementReader(elemName: String, min: Int, tpe: DataType)(implicit types: Map[String, ComplexType], generator: ReaderGenerator): String = {
       val processMatch = processReadElement(elemName, min, tpe, generator)
 
-      s"""XmlReader.elemReader("${elemName}")""" + processMatch
+      s"""XmlReader.elemReader(${elemName})""" + processMatch
     }
 
     def processReadElement(elemName: String, min: Int, tpe: DataType, generator: ReaderGenerator)(implicit types: Map[String, ComplexType]): String = {
       (min, tpe) match {
         case (0, DataType.String)             => ".map(_.flatMap(e => XmlReader.textToOption(XmlReader.childText(e))))"
         case (_, DataType.String)             => ".map(XmlReader.childText _)"
-        case (_, DataType.DeferredType(name)) => s".flatMap(${name.capitalize}Reader.read)"
+        case (_, DataType.DeferredType(name)) => s".flatMap(new ${name.capitalize}Reader(${elemName.quoted}).read)"
         case (_, DataType.NestedComplexType(content)) =>
           generateContentReader(elemName, content, generator)
           s".flatMap(${generator.decls.last.name}.read _)"
@@ -467,7 +471,7 @@ object XmlReaderGenerator {
     }
 
     def stringToType(elemName: String, childType: DataType) = {
-      val invalidation = s"""Invalid(new InvalidElement(Seq(), "${elemName}", s))"""
+      val invalidation = s"""Invalid(new InvalidElement(Seq(), ${elemName}, s))"""
       def conversion(tpe: DataType): (String => String) =
         tpe match {
           case DataType.Boolean  => { (varName: String) => s"$varName.toBoolean" }
@@ -491,10 +495,10 @@ object XmlReaderGenerator {
     def declareRequiredElementReader(e: ElementDefinition)(implicit types: Map[String, ComplexType], generator: ReaderGenerator): String =
       e match {
         case se: SpecifiedElement =>
-          generator.declare(s"${se.name}Reader", generateSingleElementReader(se.name, se.min, se.tpe))
+          generator.declare(s"${se.name}Reader", generateSingleElementReader(se.name.quoted, se.min, se.tpe))
           s"${se.name}Reader"
-        case ctr: ComplexTypeReference =>
-          generator.declare(s"${ctr.refName}SubReader", s"${ctr.refName.capitalize}Reader")
+        case ctr: ElementReference =>
+          generator.declare(s"${ctr.refName}SubReader", s"new ${ctr.refName.capitalize}Reader()")
           s"${ctr.refName}SubReader"
       }
 
@@ -518,7 +522,7 @@ object XmlReaderGenerator {
           }
           val finalFieldName = fieldName.getOrElse(e match {
             case se: SpecifiedElement => se.fieldName
-            case ctr: ComplexTypeReference => resolveElement(types)(ctr).fieldName
+            case ctr: ElementReference => resolveElement(types)(ctr).fieldName
             case c: Choice => name
           })
           val min = e match {
@@ -544,11 +548,11 @@ object XmlReaderGenerator {
             }
             val fieldName = e match {
               case se: SpecifiedElement => se.fieldName
-              case ctr: ComplexTypeReference => resolveElement(types)(ctr).fieldName
+              case ctr: ElementReference => resolveElement(types)(ctr).fieldName
               case c: Choice => name // <-- this seems bogus...
             }
             val thisReaderName = e match {
-              case r: ComplexTypeReference => r.refName
+              case r: ElementReference => r.refName
               case e: SpecifiedElement => e.name
               case c: Choice => c.fieldName
             }
@@ -563,7 +567,7 @@ object XmlReaderGenerator {
             case (toRead, e) => chainReader(toRead, e)
           }
         case SimpleContent(baseType: DataType, fieldName) =>
-          generator.declare(s"${name}ContentReader", generateSingleElementReader(name, 1, baseType))
+          generator.declare(s"${name}ContentReader", generateSingleElementReader("name", 1, baseType))
           generator.assignment(s"${name}ContentReader.read(xml)", Seq(fieldName), fieldName)
       }
     }
@@ -639,7 +643,7 @@ object XmlReaderGenerator {
       val matchCases = c.elements.map { elem =>
         val resolvedElem = resolveElement(types)(elem)
         val className = resolvedElem.tpe.resolvedType
-        (resolvedElem.name, className, specifiedElementWriter(resolvedElem.name)(resolvedElem)._1.assignedValue)
+        (resolvedElem.name, className, specifiedElementWriter(resolvedElem.name)(elem)._1.assignedValue)
       }
       val matchAccessor = if (c.isPassThrough) "v" else s"v.${c.fieldName}"
       generator.coerce(s"${c.fieldName}ToElem",
@@ -648,22 +652,27 @@ object XmlReaderGenerator {
       s"${c.fieldName}ToElem"
     }
 
-    private def specifiedElementWriter(varName: String)(e: SpecifiedElement)(implicit types: Map[String, ComplexType], generator: WriterGenerator): (Decl, String) = {
+    // TODO: We need access to the element in specificWriter
+    private def specifiedElementWriter(varName: String)(e: ElementDefinition)(implicit types: Map[String, ComplexType], generator: WriterGenerator): (Decl, String) = {
       if (e.min == 0 && e.max == Some(1)) { // verify optional type
-        val decl = specificWriter("t", e.name, e.tpe)
-        (Decl(s"${e.name}OptionElem", s"${varName}.map(t => ${decl.assignedValue})"),
-          s".withOptionalElement(${e.name}OptionElem)")
+        val decl = specificWriter("t", e)
+        val resolved = resolveElement(types)(e)
+        (Decl(s"${resolved.name}OptionElem", s"${varName}.map(t => ${decl.assignedValue})"),
+          s".withOptionalElement(${resolved.name}OptionElem)")
       } else {
-        val decl = specificWriter(varName, e.name, e.tpe)
+        val decl = specificWriter(varName, e)
         (decl, s".withElement(${decl.name})")
       }
     }
 
-    private def specificWriter(varName: String, name: String, tpe: DataType)(implicit types: Map[String, ComplexType], generator: WriterGenerator): Decl = {
+    private def specificWriter(varName: String, e: ElementDefinition)(implicit types: Map[String, ComplexType], generator: WriterGenerator): Decl = {
+      val elem = resolveElement(types)(e)
+      val name = elem.name
+      val tpe = elem.tpe
       def generateAndAddElement(text: String): Decl =
         Decl(s"${name}Elem", newElement(text))
       def writeType(name: String, klassName: String): Decl =
-        Decl(s"${name}Elem", s"${name.capitalize}Writer.write(${varName}.asInstanceOf[${klassName}], factory)")
+        Decl(s"${name}Elem", s"new ${name.capitalize}Writer(${elem.name.quoted}).write(${varName}.asInstanceOf[${klassName}], factory)")
       def newElement(text: String): String =
         s"""factory.newElement("${name}").withText(${text}).build"""
       tpe match {
@@ -719,7 +728,7 @@ object XmlReaderGenerator {
         case (klassName, cts) =>
           if (cts.length == 1) {
             val ct = cts.head
-            Seq((ct.name, ct.klassName, s"${ct.name.capitalize}Writer.write(${ct.name}, factory)"))
+            Seq((ct.name, ct.klassName, s"new ${ct.name.capitalize}Writer().write(${ct.name}, factory)"))
           } else {
             val allResolvedElements: Seq[(ComplexType, Seq[SpecifiedElement])] =
               cts.map(ct => (ct, ct.content.elements.elements.map(resolveElement(types))))
@@ -739,7 +748,7 @@ object XmlReaderGenerator {
             val differingElementSubcases =
               differingElement.map {
                 case (el, ct) =>
-                  (el.name, el.tpe.resolvedType, s"${ct.name.capitalize}Writer.write(${klassName.toLowerCase}, factory)")
+                  (el.name, el.tpe.resolvedType, s"new ${ct.name.capitalize}Writer().write(${klassName.toLowerCase}, factory)")
               }
 
             Seq((klassName.toLowerCase, klassName,
@@ -764,7 +773,7 @@ object XmlReaderGenerator {
     def resolveElement(types: Map[String, ComplexType])(elem: ElementDefinition): SpecifiedElement = {
       elem match {
         case s: SpecifiedElement => s
-        case c: ComplexTypeReference =>
+        case c: ElementReference =>
           val ct = types(c.refName)
           SpecifiedElement(ct.name, c.fieldName.getOrElse(ct.name), None, DataType.DeferredType(ct.name), c.min, c.max)
       }
@@ -842,7 +851,7 @@ object XmlReaderGenerator {
       SpecifiedElement(name, fieldName.getOrElse(name), additionalField, tpe, minOccurs, maxOccurs)
     }.orElse(
       (elementElem \ "@ref").headOption.map(_.text).map { refName =>
-        ComplexTypeReference(refName, fieldName, minOccurs, maxOccurs)
+        ElementReference(refName, fieldName, minOccurs, maxOccurs)
       }
     ).getOrElse(throw new Exception("Invalid element: " + elementElem))
   }

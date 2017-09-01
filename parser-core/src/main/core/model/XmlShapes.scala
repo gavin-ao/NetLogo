@@ -52,12 +52,10 @@ case class RectangleElem(
   }
 
 case class ParsedLinkShape(
-  var name:    String,
-  curviness:   Double,
-  linkLines:   Seq[ParsedLinkLine],
-  turtleShape: TurtleShape) extends CoreLinkShape {
-    val indicator = turtleShape
-  }
+  var name:  String,
+  curviness: Double,
+  linkLines: Seq[ParsedLinkLine],
+  indicator: TurtleShape) extends CoreLinkShape
 
 case class ParsedLinkLine(
   xcor:        Double,

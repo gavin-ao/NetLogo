@@ -572,12 +572,12 @@
     </xsd:annotation>
     <xsd:sequence>
       <!-- TODO: See if we can separate name/type so we can rename these -->
-      <xsd:element name="linkLine" type="linkLine" minOccurs="3" maxOccurs="3">
+      <xsd:element name="line" type="linkLine" minOccurs="3" maxOccurs="3">
         <xsd:annotation>
           <xsd:appinfo fieldName="linkLines" />
         </xsd:annotation>
       </xsd:element>
-      <xsd:element name="turtleShape" type="turtleShape" minOccurs="1" maxOccurs="1" />
+      <xsd:element name="indicator" type="turtleShape" minOccurs="1" maxOccurs="1" />
     </xsd:sequence>
     <xsd:attribute name="name" type="xsd:string" use="required" />
     <xsd:attribute name="curviness" type="xsd:double" use="required" />

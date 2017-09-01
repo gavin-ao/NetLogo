@@ -57,7 +57,6 @@ object XmlReader {
   def childrenElemReader: XmlReader[Element, Seq[Element]] =
     new ChildrenElementReader()
 
-  // NOTE: We only support reading homogenous sequences
   def sequenceElementReader[A](tag: String, min: Int, reader: XmlReader[Element, A]): XmlReader[Element, List[A]] =
     new SequenceElementReader(tag, min, reader)
 

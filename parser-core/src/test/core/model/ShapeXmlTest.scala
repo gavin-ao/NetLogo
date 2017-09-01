@@ -56,7 +56,7 @@ object ShapeXmlTest {
 
   // offset is typically one of { -0.2, 0.0, 0.2 }
   def linkLineXml(offset: Double): Elem =
-    Elem("linkLine",
+    Elem("line",
       Seq(Attr("offset", offset.toString), Attr("isVisible", "true"), Attr("stroke-dasharray", "1.0,0.0")),
       Seq())
 
@@ -66,7 +66,7 @@ object ShapeXmlTest {
   val linkShapeXml =
     Elem("linkShape",
       Seq(Attr("name", "foo"), Attr("curviness", "0.0")),
-      Seq(linkLineXml(-0.2), linkLineXml(0.0), linkLineXml(0.2), rectTurtleXml))
+      Seq(linkLineXml(-0.2), linkLineXml(0.0), linkLineXml(0.2), rectTurtleXml.copy(tag = "indicator")))
 
   val linkShape =
     ParsedLinkShape("foo", 0, Seq(linkLine(-0.2), linkLine(0.0), linkLine(0.2)), rectTurtle)
