@@ -15,8 +15,9 @@ import
 
 import
   org.nlogo.{ core, api },
-    core.{ model, I18N, Model, Widget },
-      model.{ Element, ElementFactory, Text, WidgetXml },
+    core.{ model, I18N, Model, Shape, Widget },
+      model.{ Element, ElementFactory, ShapeXml, Text, WidgetXml },
+      Shape.{ LinkShape, VectorShape },
     api.{ FileIO, Version }
 
 import
@@ -122,19 +123,50 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
   }
 
   // TODO: This is pass-through, we haven't yet implemented ".nlogox" shape-reading
-  object LinkComponent extends ComponentSerialization[Section, NLogoXFormat] {
+  object LinkShapeComponent extends ComponentSerialization[Section, NLogoXFormat] {
     val componentName = "org.nlogo.modelsection.linkshapes"
     override def addDefault = ((m: Model) => m.copy(linkShapes = Model.defaultLinkShapes.toSeq))
     def serialize(m: Model): Section = factory.newElement("linkShapes").build
     def validationErrors(m: Model): Option[String] = None
+    override def deserialize(shapes: Section) = { (m: Model) =>
+      shapes.children
+        .collect { case e: Element => e }
+        .foldLeft(Try(Seq.empty[LinkShape])) {
+          case (Success(acc), e) => ShapeXml.read(e) match {
+            case Valid(v: LinkShape) => Success(acc :+ v)
+            case Valid(_) => Success(acc)
+            case Invalid(err) => Failure(new NLogoXFormatException(err.message))
+          }
+            case (failure, e) => failure
+        }
+        .map(linkShapes => m.copy(linkShapes = linkShapes))
+    }
   }
 
   // TODO: This is pass-through, we haven't yet implemented ".nlogox" shape-reading
   object ShapeComponent extends ComponentSerialization[Section, NLogoXFormat] {
     val componentName = "org.nlogo.modelsection.turtleshapes"
     override def addDefault = _.copy(turtleShapes = Model.defaultShapes)
-    def serialize(m: Model): Section = factory.newElement("shapes").build
+    def serialize(m: Model): Section =
+      factory.newElement("shapes")
+        .withElementList(m.turtleShapes.map(s => ShapeXml.write(s, factory)))
+        .build
     def validationErrors(m: Model): Option[String] = None
+    override def deserialize(shapes: Section) = { (m: Model) =>
+      shapes.children
+        .collect { case e: Element => e }
+        .foldLeft(Try(Seq.empty[VectorShape])) {
+          case (Success(acc), e) => ShapeXml.read(e) match {
+            case Valid(v: VectorShape) => Success(acc :+ v)
+            case Valid(_) => Success(acc)
+            case Invalid(err) => Failure(new NLogoXFormatException(err.message))
+          }
+            case (failure, e) => failure
+        }
+        .map(shapes =>
+            if (shapes.isEmpty) addDefault(m)
+            else                m.copy(turtleShapes = shapes))
+    }
   }
 
   val sectionNamesToKeys =
@@ -208,6 +240,6 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
   def infoComponent: ComponentSerialization[Section,NLogoXFormat] = InfoComponent
   def version: ComponentSerialization[Section,NLogoXFormat] = VersionComponent
   def interfaceComponent: ComponentSerialization[Section,NLogoXFormat] = InterfaceComponent
-  def linkShapesComponent: ComponentSerialization[Section,NLogoXFormat] = LinkComponent
+  def linkShapesComponent: ComponentSerialization[Section,NLogoXFormat] = LinkShapeComponent
   def shapesComponent: ComponentSerialization[Section,NLogoXFormat] = ShapeComponent
 }

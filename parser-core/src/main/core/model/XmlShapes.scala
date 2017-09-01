@@ -12,18 +12,18 @@ object XmlShape {
   def coerce(s: Shape): XmlShape =
     s match {
       case x: XmlShape      => x
-      case v: VectorShape   => convertTurtleShape(v)
+      case v: VectorShape   => convertVectorShape(v)
       case l: CoreLinkShape => convertLinkShape(l)
     }
 
-  private def convertLinkShape(l: CoreLinkShape): ParsedLinkShape =
-    ParsedLinkShape(l.name, l.curviness, l.linkLines.map(convertLinkLine), convertTurtleShape(l.indicator))
+  def convertLinkShape(l: CoreLinkShape): ParsedLinkShape =
+    ParsedLinkShape(l.name, l.curviness, l.linkLines.map(convertLinkLine), convertVectorShape(l.indicator))
+
+  def convertVectorShape(v: VectorShape): TurtleShape =
+    TurtleShape(v.name, v.rotatable, v.editableColorIndex, v.elements.map(convert))
 
   private def convertLinkLine(ll: CoreLinkLine): ParsedLinkLine =
     ParsedLinkLine(ll.xcor, ll.isVisible, ll.dashChoices)
-
-  private def convertTurtleShape(v: VectorShape): TurtleShape =
-    TurtleShape(v.name, v.rotatable, v.editableColorIndex, v.elements.map(convert))
 
   private def convert(e: CoreElement): XmlElement =
     e match {
