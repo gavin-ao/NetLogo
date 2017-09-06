@@ -33,6 +33,9 @@ trait ElementBuilder {
     el.map(withElement).getOrElse(this)
   def withOptionalAttribute(name: String, value: Option[String]): ElementBuilder =
     value.map(e => withAttribute(name, e)).getOrElse(this)
+  def withDefaultAttribute(name: String, value: String, default: String): ElementBuilder =
+    if (value == default) this
+    else                  withAttribute(name, value)
   def withElementList(els: Seq[Element]): ElementBuilder =
     els.foldLeft(this) { case (b, el) => b.withElement(el) }
 }

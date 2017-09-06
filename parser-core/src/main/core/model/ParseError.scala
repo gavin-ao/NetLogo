@@ -10,7 +10,7 @@ object ParseError {
       (x, y) match {
         case (x: UnknownWidgetType, _) => x
         case (_, y: UnknownWidgetType) => y
-        case (x: MissingKeys, y: MissingKeys) => new MissingKeys(x.path, x.keys ++ y.keys)
+        case (x: MissingKeys, y: MissingKeys) => new MissingKeys(x.path, (x.keys ++ y.keys).distinct)
         case (x: InvalidValue, y: InvalidValue) => x
         case (x: MissingValues, _) => x
         case (_, y: MissingValues) => y
@@ -46,7 +46,7 @@ object MissingElement {
 }
 
 class MissingElement(val path: Seq[String], val elementName: String) extends MissingValues {
-  val message = s"expected ${path.mkString("/")}to contain child element $elementName"
+  val message = s"expected ${path.mkString("/")} to contain child element $elementName"
   override def equals(other: Any): Boolean = {
     other match {
       case m: MissingElement => m.path == path && m.elementName == elementName

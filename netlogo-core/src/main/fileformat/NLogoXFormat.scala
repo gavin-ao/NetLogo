@@ -161,9 +161,10 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
           case (Success(acc), e) => ShapeXml.read(e) match {
             case Valid(v: VectorShape) => Success(acc :+ v)
             case Valid(_) => Success(acc)
-            case Invalid(err) => Failure(new NLogoXFormatException(err.message))
+            case Invalid(err) =>
+              Failure(new NLogoXFormatException(err.message))
           }
-            case (failure, e) => failure
+          case (failure, e) => failure
         }
         .map(shapes =>
             if (shapes.isEmpty) addDefault(m)
@@ -175,8 +176,8 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
     Map(
       "code"       -> "org.nlogo.modelsection.code",
       "info"       -> "org.nlogo.modelsection.info",
-      "shapes"     -> "org.nlogo.modelsection.turtleShapes",
-      "linkShapes" -> "org.nlogo.modelsection.linkShapes",
+      "shapes"     -> "org.nlogo.modelsection.turtleshapes",
+      "linkShapes" -> "org.nlogo.modelsection.linkshapes",
       "version"    -> "org.nlogo.modelsection.version",
       "widgets"    -> "org.nlogo.modelsection.interface")
 

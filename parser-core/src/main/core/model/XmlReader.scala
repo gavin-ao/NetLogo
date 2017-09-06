@@ -2,7 +2,8 @@
 
 package org.nlogo.core.model
 
-import java.lang.{ Integer => JInteger }
+import
+  java.lang.{ Double => JDouble, Integer => JInteger }
 
 import
   org.nlogo.core.{ Color, RgbColor }
@@ -15,6 +16,9 @@ import
     Validated.{Invalid, Valid}
 
 object XmlReader {
+  def bigDecimalReader(name: String): XmlReader[Element, BigDecimal] =
+    validReader(name, BigDecimal(_))
+
   def booleanReader(name: String): XmlReader[Element, Boolean] =
     validReader(name, _.toBoolean)
 
@@ -32,6 +36,9 @@ object XmlReader {
 
   def doubleReader(name: String): XmlReader[Element, Double] =
     validReader(name, _.toDouble)
+
+  def boxedDoubleReader(name: String): XmlReader[Element, JDouble] =
+    validReader(name, _.toDouble).map(Double.box _)
 
   def enumReader[A](options: Map[String, A])(name: String): XmlReader[Element, A] =
     validReader(name, options.apply)
@@ -77,6 +84,10 @@ object XmlReader {
   def textToOption(s: String): Option[String] =
     if (s.isEmpty) None
     else Some(s)
+
+  def validHead[A](s: Seq[A], name: String): Validated[ParseError, A] =
+    if (s.isEmpty) Invalid(MissingElement(Seq(), name))
+    else Valid(s.head)
 
   private def textToPointsSequence(name: String)(s: String): Validated[ParseError, Seq[(Int, Int)]] = {
     import cats.instances.list._
@@ -233,7 +244,6 @@ object XmlReader {
       else
         Valid((acc, elems))
 
-
     @scala.annotation.tailrec
     private def readRec(elems: Seq[Element], acc: Seq[A]): Validated[ParseError, (Seq[A], Seq[Element])] =
       if (elems.isEmpty)
@@ -257,6 +267,7 @@ trait XmlReader[A, +B] {
   def flatMap[C](f: B => Validated[ParseError, C]): XmlReader[A, C] =
     new WrappingXmlReader(this, (b: B) => f(b))
   def path: Seq[String] = Seq()
+  def withDefault[C >: B](default: C): XmlReader[A, C] = new DefaultXmlReader(this, default)
   def atPath(path: Seq[String]): XmlReader[A, B] = new PathedXmlReader(this, path)
   def atPath(path: String): XmlReader[A, B] = atPath(Seq(path))
 }
@@ -275,6 +286,19 @@ class WrappingXmlReader[A, B, C](wrappedReader: XmlReader[A, B], f: B => Validat
 
   def read(elem: A): Validated[ParseError, C] =
     wrappedReader.read(elem).andThen(f)
+}
+
+class DefaultXmlReader[A, B](wrappedReader: XmlReader[A, B], default: B) extends XmlReader[A, B] {
+  def name = wrappedReader.name
+  def read(elem: A): Validated[ParseError, B] =
+    wrappedReader.read(elem)
+      .fold(
+        e => e match {
+          case m: MissingElement => Valid(default)
+          case k: MissingKeys => Valid(default)
+          case other => Invalid(other)
+        },
+        b => Valid(b))
 }
 
 class PathedXmlReader[A, B](wrappedReader: XmlReader[A, B], override val path: Seq[String]) extends XmlReader[A, B] {

@@ -61,7 +61,7 @@
 
   <xsd:complexType name="view">
     <xsd:annotation>
-      <xsd:appinfo className="View" />
+      <xsd:appinfo className="View" additionalImports="UpdateMode" />
     </xsd:annotation>
     <xsd:all>
       <xsd:element ref="dimensions" minOccurs="1" maxOccurs="1" />
@@ -94,7 +94,7 @@
 
   <xsd:complexType name="slider">
     <xsd:annotation>
-      <xsd:appinfo className="Slider" />
+      <xsd:appinfo className="Slider" additionalImports="Direction Horizontal Vertical" />
     </xsd:annotation>
     <xsd:all>
       <xsd:element name="maximum" type="xsd:string" minOccurs="1">
@@ -240,7 +240,7 @@
 
   <xsd:complexType name="button">
     <xsd:annotation>
-      <xsd:appinfo className="Button" />
+      <xsd:appinfo className="Button" additionalImports="AgentKind" />
     </xsd:annotation>
     <xsd:all>
       <xsd:element name="source" type="xsd:string" minOccurs="0" maxOccurs="1"/>
@@ -253,7 +253,7 @@
         <xsd:appinfo fieldName="disableUntilTicksStart" />
       </xsd:annotation>
     </xsd:attribute>
-    <xsd:attribute name="agentKind" default="observer" use="required">
+    <xsd:attribute name="agentKind" default="observer" >
       <xsd:annotation>
         <xsd:appinfo fieldName="buttonKind" />
       </xsd:annotation>
@@ -312,14 +312,14 @@
 
   <xsd:complexType name="choices">
     <xsd:annotation>
-      <xsd:appinfo passThrough="true" className="List[Chooseable]" />
+      <xsd:appinfo passThrough="true" className="List[Chooseable]" additionalImports="Chooseable" />
     </xsd:annotation>
     <xsd:sequence>
       <xsd:choice>
         <xsd:annotation>
           <xsd:appinfo fieldName="value" className="Chooseable" />
         </xsd:annotation>
-        <xsd:element ref="listChoice" />
+        <xsd:element name="listChoice" type="logoList" />
         <xsd:element name="numberChoice" type="xsd:double">
           <xsd:annotation>
             <xsd:appinfo boxed="true" />
@@ -335,9 +335,9 @@
     </xsd:sequence>
   </xsd:complexType>
 
-  <xsd:complexType name="listChoice">
+  <xsd:complexType name="logoList">
     <xsd:annotation>
-      <xsd:appinfo className="LogoList" />
+      <xsd:appinfo className="LogoList" import="false" />
     </xsd:annotation>
     <xsd:sequence>
       <xsd:annotation>
@@ -347,18 +347,18 @@
         <xsd:annotation>
           <xsd:appinfo passThrough="true" fieldName="value" className="AnyRef" />
         </xsd:annotation>
-        <xsd:element name="numberChoice" type="xsd:double">
+        <xsd:element name="number" type="xsd:double">
           <xsd:annotation>
             <xsd:appinfo boxed="true" />
           </xsd:annotation>
         </xsd:element>
-        <xsd:element name="stringChoice" type="xsd:string" />
-        <xsd:element name="booleanChoice" type="xsd:boolean">
+        <xsd:element name="string" type="xsd:string" />
+        <xsd:element name="boolean" type="xsd:boolean">
           <xsd:annotation>
             <xsd:appinfo boxed="true" />
           </xsd:annotation>
         </xsd:element>
-        <xsd:element ref="listChoice" />
+        <xsd:element ref="logoList" />
       </xsd:choice>
     </xsd:sequence>
   </xsd:complexType>
@@ -571,7 +571,6 @@
       <xsd:appinfo className="ParsedLinkShape" import="false" />
     </xsd:annotation>
     <xsd:sequence>
-      <!-- TODO: See if we can separate name/type so we can rename these -->
       <xsd:element name="line" type="linkLine" minOccurs="3" maxOccurs="3">
         <xsd:annotation>
           <xsd:appinfo fieldName="linkLines" />
@@ -600,6 +599,128 @@
     </xsd:attribute>
   </xsd:complexType>
 
+  <xsd:complexType name="experiment">
+    <xsd:annotation>
+      <xsd:appinfo className="LabProtocol" />
+    </xsd:annotation>
+    <xsd:attribute name="name"                type="xsd:string" default="" />
+    <xsd:attribute name="repetitions"         type="xsd:nonNegativeInteger" default="1" />
+    <xsd:attribute name="runMetricsEveryStep" type="xsd:boolean" default="true" />
+    <xsd:attribute name="sequentialRunOrder"  type="xsd:boolean" default="true" />
+    <xsd:all>
+      <xsd:element name="stepLimit" type="xsd:nonNegativeInteger" minOccurs="0" default="0">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="timeLimit" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="setup" type="xsd:string" minOccurs="0" default="">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="setupCommands" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="go" type="xsd:string" minOccurs="0" default="">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="goCommands" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="final" type="xsd:string" minOccurs="0" default="">
+        <xsd:annotation>
+          <xsd:appinfo fieldName="finalCommands" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="exitCondition" type="xsd:string" minOccurs="0" default="" />
+      <xsd:element name="metrics" type="metrics" minOccurs="0">
+        <xsd:annotation>
+          <xsd:appinfo appDefault="List()" />
+        </xsd:annotation>
+      </xsd:element>
+      <xsd:element name="valueSets" type="valueSets" minOccurs="0">
+        <xsd:annotation>
+          <xsd:appinfo appDefault="List()" />
+        </xsd:annotation>
+      </xsd:element>
+    </xsd:all>
+  </xsd:complexType>
+
+  <xsd:complexType name="valueSets">
+    <xsd:annotation>
+      <xsd:appinfo className="List[RefValueSet]" passThrough="true" additionalImports="RefValueSet" />
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:choice>
+        <xsd:annotation>
+          <xsd:appinfo className="RefValueSet" fieldName="values" passThrough="true" />
+        </xsd:annotation>
+        <xsd:element name="enumeratedValueSet" type="enumeratedValueSet" />
+        <xsd:element name="steppedValueSet" type="steppedValueSet" />
+      </xsd:choice>
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="metrics">
+    <xsd:annotation>
+      <xsd:appinfo fieldName="metrics" className="List[String]" passThrough="true" />
+    </xsd:annotation>
+    <xsd:sequence>
+      <xsd:element name="metric" type="xsd:string" minOccurs="0" maxOccurs="unbounded" />
+    </xsd:sequence>
+  </xsd:complexType>
+
+  <xsd:complexType name="steppedValueSet">
+    <xsd:annotation>
+      <xsd:appinfo className="SteppedValueSet" />
+    </xsd:annotation>
+    <xsd:attribute name="variable" type="xsd:string" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="variableName" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="first" type="BigDecimal" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="firstValue" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:attribute name="step" type="BigDecimal" use="required" />
+    <xsd:attribute name="last" type="BigDecimal" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="lastValue" />
+      </xsd:annotation>
+    </xsd:attribute>
+  </xsd:complexType>
+
+  <xsd:complexType name="enumeratedValueSet">
+    <xsd:annotation>
+      <xsd:appinfo className="RefEnumeratedValueSet" />
+    </xsd:annotation>
+    <xsd:attribute name="variable" type="xsd:string" use="required">
+      <xsd:annotation>
+        <xsd:appinfo fieldName="variableName" />
+      </xsd:annotation>
+    </xsd:attribute>
+    <xsd:sequence>
+      <xsd:annotation>
+        <xsd:appinfo fieldName="values" />
+      </xsd:annotation>
+      <xsd:choice minOccurs="0" maxOccurs="unbounded" >
+        <xsd:annotation>
+          <xsd:appinfo className="AnyRef" fieldName="value" passThrough="true" />
+        </xsd:annotation>
+        <xsd:element name="number" type="xsd:double">
+          <xsd:annotation>
+            <xsd:appinfo boxed="true" />
+          </xsd:annotation>
+        </xsd:element>
+        <xsd:element name="string" type="xsd:string" />
+        <xsd:element name="boolean" type="xsd:boolean">
+          <xsd:annotation>
+            <xsd:appinfo boxed="true" />
+          </xsd:annotation>
+        </xsd:element>
+        <xsd:element name="logoList" type="logoList" />
+      </xsd:choice>
+    </xsd:sequence>
+  </xsd:complexType>
+
   <xsd:attributeGroup name="Positioned">
     <xsd:attribute name="left" type="xsd:nonNegativeInteger" use="required" />
     <xsd:attribute name="top" type="xsd:nonNegativeInteger" use="required" />
@@ -622,4 +743,11 @@
       <xsd:extension base="xsd:string" />
     </xsd:simpleContent>
   </xsd:complexType>
+
+  <xsd:simpleType name="BigDecimal">
+    <xsd:annotation>
+      <xsd:documentation>Decimal type with arbitrary precision.</xsd:documentation>
+    </xsd:annotation>
+    <xsd:restriction base="double"/>
+  </xsd:simpleType>
 </xsd:schema>

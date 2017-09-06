@@ -109,6 +109,8 @@ lazy val netlogo = project.in(file("netlogo-gui")).
   settings(EventsGenerator.settings: _*).
   settings(Docs.settings: _*).
   settings(publicationSettings("NetLogo-JVM"): _*).
+  settings(shareSourceDirectory("netlogo-core"): _*).
+  settings(XmlReaderGenerator.bspaceSettings: _*).
   settings(flexmarkDependencies).
   settings(Defaults.coreDefaultSettings ++
            Testing.settings ++
@@ -194,6 +196,7 @@ lazy val headless = (project in file ("netlogo-headless")).
   settings(includeInPackaging(parserJVM): _*).
   settings(shareSourceDirectory("netlogo-core"): _*).
   settings(Dump.settings: _*).
+  settings(XmlReaderGenerator.bspaceSettings: _*).
   settings(ChecksumsAndPreviews.settings: _*).
   settings(
     name          := "NetLogoHeadless",
@@ -305,7 +308,7 @@ lazy val parser = CrossProject("parser", file("."),
   jvmConfigure(_.dependsOn(sharedResources)).
   jvmSettings(jvmSettings: _*).
   jvmSettings(scalatestSettings: _*).
-  jvmSettings(XmlReaderGenerator.settings: _*).
+  jvmSettings(XmlReaderGenerator.parserSettings: _*).
   jvmSettings(
       autogenRoot     := baseDirectory.value.getParentFile / "autogen",
       mappings in (Compile, packageBin) ++= mappings.in(sharedResources, Compile, packageBin).value,

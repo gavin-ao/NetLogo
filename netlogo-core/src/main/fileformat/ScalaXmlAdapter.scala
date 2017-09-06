@@ -16,6 +16,36 @@ case class ScalaXmlElement(val elem: Elem) extends Element {
     case t: XmlText => new ScalaTextElement(t)
     case c: PCData => new ScalaTextElement(c)
   }
+
+  private def childrenWithoutWhitespace(e: Elem): Seq[XmlNode] =
+    e.child.collect {
+      case t: Text if ! t.text.trim.isEmpty => t
+      case cd: PCData if ! cd.text.trim.isEmpty => cd
+      case e: Elem => e
+    }.toSeq
+
+  private def compareXml(n1: XmlNode, n2: XmlNode): Boolean = {
+    import scala.xml.{ Elem, PCData, Text }
+
+    if (n1 == n2) true
+    else (n1, n2) match {
+      case (cd: PCData, t: Text) => cd.text.trim == t.text.trim
+      case (t: Text, cd: PCData) => cd.text.trim == t.text.trim
+      case (e1: Elem, e2: Elem) =>
+        e1.label == e2.label &&
+        e1.attributes == e2.attributes &&
+        (childrenWithoutWhitespace(e1) zip childrenWithoutWhitespace(e2)).forall {
+          case (c1, c2) => compareXml(c1, c2)
+        }
+      case _ => false
+    }
+  }
+
+  override def equals(a: Any): Boolean =
+    a match {
+      case s: ScalaXmlElement => compareXml(elem, s.elem)
+      case _ => false
+    }
 }
 
 case class ScalaXmlAttribute(val attr: XmlAttribute) extends Attribute {

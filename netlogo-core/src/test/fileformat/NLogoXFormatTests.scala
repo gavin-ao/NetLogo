@@ -13,7 +13,7 @@ import
 
 import
   org.nlogo.core.{ Button, DummyCompilationEnvironment, DummyExtensionManager, model, Model, Shape, View, Widget },
-    model.XmlShape,
+    model.{ Attribute, Element, Node, Text, XmlShape },
     Shape.{ LinkShape, VectorShape }
 
 import
@@ -40,6 +40,35 @@ abstract class NLogoXFormatTest[A] extends ModelSectionTest[NLogoXFormat.Section
 
   override def displaySerialized(section: NLogoXFormat.Section): String = {
     section.toString
+  }
+
+  override def minimizeSerializedDiff(e1: NLogoXFormat.Section, e2: NLogoXFormat.Section): (NLogoXFormat.Section, NLogoXFormat.Section) = {
+    def minimizeNodes(n1: Node, n2: Node): (Node, Node) =
+      (n1, n2) match {
+        case (e1: Element, e2: Element) => minimizeSerializedDiff(e1, e2)
+        case (t1: Text, t2: Text) => (t1, t2)
+        case _ => (n1, n2)
+      }
+    def normalizeAttributes(attrs: Seq[Attribute]): Seq[Attribute] =
+      attrs.map(a => Attr(a.name, a.value))
+    def isOnlyWhitespace(n: Node): Boolean =
+      n match {
+        case t: Text => t.text.trim.isEmpty
+        case _ => false
+      }
+    lazy val normedAttrs1 = normalizeAttributes(e1.attributes)
+    lazy val normedAttrs2 = normalizeAttributes(e2.attributes)
+    if (e1.tag != e2.tag) (Elem(e1.tag, normedAttrs1, Seq()), Elem(e2.tag, normedAttrs2, Seq()))
+    else if (e1.attributes != e2.attributes)
+      (Elem(e1.tag, normedAttrs1, Seq()), Elem(e2.tag, normedAttrs2, Seq()))
+    else {
+      val (newChildren1, newChildren2) = (e1.children.filterNot(isOnlyWhitespace) zip e2.children.filterNot(isOnlyWhitespace)).filter {
+        case (c1, c2) => c1 != c2
+      }
+        .map((minimizeNodes _).tupled)
+        .unzip
+      (Elem(e1.tag, normedAttrs1, newChildren1), Elem(e2.tag, normedAttrs2, newChildren2))
+    }
   }
 }
 

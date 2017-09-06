@@ -165,8 +165,8 @@ class WidgetXmlTest extends FunSuite {
     val xml = Elem("button",
       dimensions ++ Seq(
         Attr("forever", "false"),
-        Attr("ticksEnabled", "false"),
-        Attr("agentKind", "observer")),
+        Attr("ticksEnabled", "false")),
+      // doesn't write out agentKind because Observer is default
       Seq(namedText("source", "go 100"),
         namedText("display", "go")))
     assertResult(xml)(writeToXml(
@@ -181,7 +181,7 @@ class WidgetXmlTest extends FunSuite {
       dimensions ++ Seq(
         Attr("forever", "false"),
         Attr("ticksEnabled", "false"),
-        Attr("agentKind", "observer"),
+        // doesn't write out agentKind because Observer is default
         Attr("actionKey", "c")),
       Seq(namedText("source", "go 100"),
         namedText("display", "go")))
