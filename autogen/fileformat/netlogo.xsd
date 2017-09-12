@@ -721,6 +721,13 @@
     </xsd:sequence>
   </xsd:complexType>
 
+  <xsd:complexType name="modelSettings">
+    <xsd:annotation>
+      <xsd:appinfo className="ModelSettings" />
+    </xsd:annotation>
+    <xsd:attribute name="snapToGrid" type="xsd:boolean" default="false" />
+  </xsd:complexType>
+
   <xsd:attributeGroup name="Positioned">
     <xsd:attribute name="left" type="xsd:nonNegativeInteger" use="required" />
     <xsd:attribute name="top" type="xsd:nonNegativeInteger" use="required" />

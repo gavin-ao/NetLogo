@@ -12,21 +12,17 @@ import
   org.nlogo.api.ComponentSerialization
 
 import
-  org.nlogo.core.{ Button, DummyCompilationEnvironment, DummyExtensionManager, model, Model, Shape, View, Widget },
-    model.{ Attribute, Element, Node, Text, XmlShape },
-    Shape.{ LinkShape, VectorShape }
+  org.nlogo.{ api, core },
+    core.{ Button, DummyCompilationEnvironment, DummyExtensionManager, model, Model, Shape, View, Widget },
+      model.{ Attribute, Element, Node, Text, XmlShape },
+      Shape.{ LinkShape, VectorShape },
+    api.ModelSettings
 
 import
   org.nlogo.core.model.DummyXML._
 
 import
   org.scalatest.FunSuite
-
-import
-  scala.collection.JavaConverters._
-
-import
-  scala.xml.XML
 
 abstract class NLogoXFormatTest[A] extends ModelSectionTest[NLogoXFormat.Section, NLogoXFormat, A] {
   val extensionManager = new DummyExtensionManager()
@@ -181,4 +177,17 @@ class NLogoXLinkShapeComponentTest extends NLogoXFormatTest[Seq[LinkShape]] {
   testDeserializes("empty link shapes to default shapes", Elem("linkShapes", Seq(), Seq()), Model.defaultLinkShapes)
   val defaultShape = XmlShape.convertLinkShape(Model.defaultLinkShapes.find(_.name == "default").get)
   testRoundTripsObjectForm("default-only link shape list", Seq(defaultShape))
+}
+
+class NLogoXModelSettingsComponentTest extends NLogoXFormatTest[ModelSettings] {
+  def subject = new NLogoXModelSettings(ScalaXmlElementFactory)
+  def modelComponent(model: Model): ModelSettings =
+    model.optionalSectionValue(NLogoModelSettings.componentName).get
+  def attachComponent(settings: ModelSettings): Model =
+    Model().withOptionalSection(NLogoModelSettings.componentName, Some(settings), ModelSettings(false))
+
+  testDeserializes("snap-to-grid defaults to false", Elem("modelSettings", Seq(), Seq()), ModelSettings(false))
+  testDeserializes("snap-to-grid set to true", Elem("modelSettings", Seq(Attr("snapToGrid", "true")), Seq()), ModelSettings(true))
+  testRoundTripsObjectForm("snap-to-grid", ModelSettings(true))
+  testRoundTripsObjectForm("non-snap-to-grid", ModelSettings(false))
 }

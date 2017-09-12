@@ -71,6 +71,16 @@ object XmlReaderGenerator {
             Seq("experiment"),
             "import org.nlogo.core.{ LogoList, model},\n  model.{ Element, ElementFactory, InvalidElement, ParseError, UnknownWidgetType, XmlReader }\nimport org.nlogo.api.RefValueSet",
             "org.nlogo.api",
+            identity),
+          generator(streams.value.log.info(_),
+            autogenRoot.value / "fileformat" / "netlogo.xsd",
+            (sourceManaged in Compile).value,
+            "org.nlogo.fileformat",
+            "ModelSettings",
+            Seq("modelSettings"),
+            Seq("modelSettings"),
+            "import org.nlogo.core.model.{ Element, ElementFactory, InvalidElement, ParseError, UnknownWidgetType, XmlReader }",
+            "org.nlogo.api",
             identity)
           )
       }

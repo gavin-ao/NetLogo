@@ -3,12 +3,12 @@
 package org.nlogo.fileformat
 
 import
-  org.nlogo.core.{ Femto, LiteralParser, LogoList, Model, model },
+  org.nlogo.core.{ LogoList, Model, model },
     model.{ DummyXML, Element },
       DummyXML._
 
 import
-  org.nlogo.api.{ FileIO, LabProtocol, RefEnumeratedValueSet, SteppedValueSet }
+  org.nlogo.api.{ LabProtocol, RefEnumeratedValueSet, SteppedValueSet }
 
 import scala.xml.XML
 
