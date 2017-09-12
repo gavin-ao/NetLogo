@@ -20,22 +20,20 @@
     </xsd:complexType>
   </xsd:element>
 
-  <xsd:complexType name="WidgetList">
-    <xsd:sequence>
-      <xsd:choice maxOccurs="unbounded">
-        <xsd:element name="button"  type="button" />
-        <xsd:element name="chooser" type="chooser" />
-        <xsd:element name="numericInput" type="numericInput" />
-        <xsd:element name="stringInput" type="stringInput" />
-        <xsd:element name="monitor" type="monitor" />
-        <xsd:element name="output"  type="output" />
-        <xsd:element name="plot"    type="PlotWidget" />
-        <xsd:element name="slider"  type="slider" />
-        <xsd:element name="switch"  type="switch" />
-        <xsd:element name="textbox" type="textbox" />
-        <xsd:element name="view"    type="view" />
-      </xsd:choice>
-    </xsd:sequence>
+  <xsd:complexType name="Widget">
+    <xsd:choice maxOccurs="unbounded">
+      <xsd:element name="button"  type="button" />
+      <xsd:element name="chooser" type="chooser" />
+      <xsd:element name="numericInput" type="numericInput" />
+      <xsd:element name="stringInput" type="stringInput" />
+      <xsd:element name="monitor" type="monitor" />
+      <xsd:element name="output"  type="output" />
+      <xsd:element name="plot"    type="plot" />
+      <xsd:element name="slider"  type="slider" />
+      <xsd:element name="switch"  type="switch" />
+      <xsd:element name="textbox" type="textbox" />
+      <xsd:element name="view"    type="view" />
+    </xsd:choice>
   </xsd:complexType>
 
   <xsd:complexType name="dimensions">
@@ -491,7 +489,7 @@
 
   <xsd:complexType name="turtleShape">
     <xsd:annotation>
-      <xsd:appinfo className="TurtleShape" import="false" additionalImports="Shape" />
+      <xsd:appinfo className="VectorShape" constructorName="TurtleShape" import="false" additionalImports="Shape.VectorShape" />
     </xsd:annotation>
     <xsd:all>
       <xsd:element name="elements" type="elements" />
@@ -568,7 +566,7 @@
 
   <xsd:complexType name="linkShape">
     <xsd:annotation>
-      <xsd:appinfo className="ParsedLinkShape" import="false" />
+      <xsd:appinfo className="LinkShape" constructorName="ParsedLinkShape" import="false" additionalImports="Shape.LinkShape" />
     </xsd:annotation>
     <xsd:sequence>
       <xsd:element name="line" type="linkLine" minOccurs="3" maxOccurs="3">
@@ -726,6 +724,37 @@
       <xsd:appinfo className="ModelSettings" />
     </xsd:annotation>
     <xsd:attribute name="snapToGrid" type="xsd:boolean" default="false" />
+  </xsd:complexType>
+
+  <xsd:complexType name="previewCommands">
+    <xsd:annotation>
+      <xsd:appinfo className="PreviewCommands" passThrough="true" />
+    </xsd:annotation>
+    <xsd:choice>
+      <xsd:annotation>
+        <xsd:appinfo fieldName="source" passThrough="true" />
+      </xsd:annotation>
+      <xsd:element name="manual" type="manualPreviewCommands" />
+      <xsd:element name="compiled" type="compiledPreviewCommands" />
+    </xsd:choice>
+  </xsd:complexType>
+
+  <xsd:complexType name="manualPreviewCommands">
+    <xsd:annotation>
+      <xsd:appinfo className="PreviewCommands.Manual" singletonClass="true"/>
+    </xsd:annotation>
+  </xsd:complexType>
+
+  <xsd:complexType name="compiledPreviewCommands">
+    <xsd:annotation>
+      <xsd:appinfo className="PreviewCommands.Compilable" />
+    </xsd:annotation>
+    <xsd:simpleContent>
+      <xsd:annotation>
+        <xsd:appinfo fieldName="source" />
+      </xsd:annotation>
+      <xsd:extension base="xsd:string" />
+    </xsd:simpleContent>
   </xsd:complexType>
 
   <xsd:attributeGroup name="Positioned">

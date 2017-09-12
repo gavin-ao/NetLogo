@@ -8,8 +8,8 @@ object ParseError {
   implicit val parseErrorSemigroup = new Semigroup[ParseError] {
     def combine(x: ParseError, y: ParseError): ParseError = {
       (x, y) match {
-        case (x: UnknownWidgetType, _) => x
-        case (_, y: UnknownWidgetType) => y
+        case (x: UnknownElementType, _) => x
+        case (_, y: UnknownElementType) => y
         case (x: MissingKeys, y: MissingKeys) => new MissingKeys(x.path, (x.keys ++ y.keys).distinct)
         case (x: InvalidValue, y: InvalidValue) => x
         case (x: MissingValues, _) => x
@@ -152,9 +152,9 @@ class InvalidMultipleValues(val path: Seq[String], val possibilities: Seq[String
     new InvalidMultipleValues(path = additionalPath ++ path, possibilities)
 }
 
-case class UnknownWidgetType(path: Seq[String]) extends ParseError {
-  override def message = s"Unknown widget type ${path.last} at ${path.init.mkString("/")}"
+case class UnknownElementType(path: Seq[String]) extends ParseError {
+  override def message = s"Unknown element type ${path.last} at ${path.init.mkString("/")}"
 
   override def atPath(additionalPath: Seq[String]): ParseError =
-    new UnknownWidgetType(additionalPath ++ path)
+    new UnknownElementType(additionalPath ++ path)
 }

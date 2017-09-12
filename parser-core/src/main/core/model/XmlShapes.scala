@@ -9,11 +9,16 @@ import org.nlogo.core.{ RgbColor, Shape },
 sealed trait XmlShape
 
 object XmlShape {
-  def coerce(s: Shape): XmlShape =
+  def coerceLinkShape(s: CoreLinkShape): ParsedLinkShape =
     s match {
-      case x: XmlShape      => x
-      case v: VectorShape   => convertVectorShape(v)
+      case x: ParsedLinkShape => x
       case l: CoreLinkShape => convertLinkShape(l)
+    }
+
+  def coerceVectorShape(s: VectorShape): TurtleShape =
+    s match {
+      case x: TurtleShape => x
+      case v: VectorShape => convertVectorShape(v)
     }
 
   def convertLinkShape(l: CoreLinkShape): ParsedLinkShape =
@@ -81,11 +86,23 @@ case class RectangleElem(
     def lowerRightCorner = (x + width, y + height)
   }
 
-case class ParsedLinkShape(
+object ParsedLinkShape {
+  def apply(name: String, curviness: Double, linkLines: Seq[ParsedLinkLine], indicator: VectorShape): ParsedLinkShape =
+    new ParsedLinkShape(name, curviness, linkLines, XmlShape.coerceVectorShape(indicator))
+}
+
+class ParsedLinkShape(
   var name:  String,
-  curviness: Double,
-  linkLines: Seq[ParsedLinkLine],
-  indicator: TurtleShape) extends CoreLinkShape with XmlShape
+  val curviness: Double,
+  val linkLines: Seq[ParsedLinkLine],
+  val indicator: TurtleShape) extends CoreLinkShape with XmlShape {
+    override def toString = s"ParsedLinkShape($name, $curviness, $linkLines, $indicator)"
+    override def equals(other: Any): Boolean =
+      other match {
+        case p: ParsedLinkShape => name == p.name && curviness == p.curviness && linkLines == p.linkLines && indicator == p.indicator
+        case _ => false
+      }
+  }
 
 case class ParsedLinkLine(
   xcor:        Double,

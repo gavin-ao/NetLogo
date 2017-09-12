@@ -3,7 +3,7 @@
 package org.nlogo.core.model
 
 import
-  org.nlogo.core.{ RgbColor, Shape }, Shape.{ Element => CoreElement }
+  org.nlogo.core.{ RgbColor, Shape }, Shape.{ Element => CoreElement, LinkShape, VectorShape }
 
 import
   org.scalatest.FunSuite
@@ -87,69 +87,75 @@ class ShapeXmlTest extends FunSuite {
   import DummyXML._
   import ShapeXmlTest._
 
-  def readFromXml(x: Elem): Shape =
-    ShapeXml.read(x).toOption.get
+  def readTurtleFromXml(x: Elem): VectorShape =
+    VectorShapeXml.read(x).toOption.get
 
-  def writeToXml(s: Shape): Element =
-    ShapeXml.write(s, Factory)
+  def readLinkFromXml(x: Elem): LinkShape =
+    LinkShapeXml.read(x).toOption.get
+
+  def writeTurtleToXml(s: VectorShape): Element =
+    VectorShapeXml.write(s, Factory)
+
+  def writeLinkToXml(s: LinkShape): Element =
+    LinkShapeXml.write(s, Factory)
 
   test("reads empty turtle shape") {
-    assertResult(emptyTurtleShape)(readFromXml(emptyTurtleXml))
+    assertResult(emptyTurtleShape)(readTurtleFromXml(emptyTurtleXml))
   }
 
   test("writes empty turtle shape") {
-    assertResult(emptyTurtleXml)(writeToXml(emptyTurtleShape))
+    assertResult(emptyTurtleXml)(writeTurtleToXml(emptyTurtleShape))
   }
 
   test("reads turtle shape with circle") {
-    assertResult(circleTurtle)(readFromXml(circleTurtleXml))
+    assertResult(circleTurtle)(readTurtleFromXml(circleTurtleXml))
   }
 
   test("writes turtle shape with circle") {
-    assertResult(circleTurtleXml)(writeToXml(circleTurtle))
+    assertResult(circleTurtleXml)(writeTurtleToXml(circleTurtle))
   }
 
   test("reads turtle shape with rectangle") {
-    assertResult(rectTurtle)(readFromXml(rectTurtleXml))
+    assertResult(rectTurtle)(readTurtleFromXml(rectTurtleXml))
   }
 
   test("writes turtle shape with rectangle") {
-    assertResult(rectTurtleXml)(writeToXml(rectTurtle))
+    assertResult(rectTurtleXml)(writeTurtleToXml(rectTurtle))
   }
 
   test("reads turtle shape with line") {
-    assertResult(lineTurtle)(readFromXml(lineTurtleXml))
+    assertResult(lineTurtle)(readTurtleFromXml(lineTurtleXml))
   }
 
   test("writes turtle shape with line") {
-    assertResult(lineTurtleXml)(writeToXml(lineTurtle))
+    assertResult(lineTurtleXml)(writeTurtleToXml(lineTurtle))
   }
 
   test("reads turtle shape with polygon") {
-    assertResult(polyTurtle)(readFromXml(polyTurtleXml))
+    assertResult(polyTurtle)(readTurtleFromXml(polyTurtleXml))
   }
 
   test("writes turtle shape with polygon") {
-    assertResult(polyTurtleXml)(writeToXml(polyTurtle))
+    assertResult(polyTurtleXml)(writeTurtleToXml(polyTurtle))
   }
 
   test("reads turtle shape with multiple shapes") {
-    assertResult(multiShapeTurtle)(readFromXml(multiShapeTurtleXml))
+    assertResult(multiShapeTurtle)(readTurtleFromXml(multiShapeTurtleXml))
   }
 
   test("writes turtle shape with multiple shapes") {
-    assertResult(multiShapeTurtleXml)(writeToXml(multiShapeTurtle))
+    assertResult(multiShapeTurtleXml)(writeTurtleToXml(multiShapeTurtle))
   }
 
   test("reads link shapes") {
-    assertResult(linkShape)(readFromXml(linkShapeXml))
+    assertResult(linkShape)(readLinkFromXml(linkShapeXml))
   }
 
   test("writes link shapes") {
-    assertResult(linkShapeXml)(writeToXml(linkShape))
+    assertResult(linkShapeXml)(writeLinkToXml(linkShape))
   }
 
   test("writes turtle shape for other types of TurtleShapes") {
-    assertResult(lineTurtleXml)(writeToXml(otherLineTurtle))
+    assertResult(lineTurtleXml)(writeTurtleToXml(otherLineTurtle))
   }
 }

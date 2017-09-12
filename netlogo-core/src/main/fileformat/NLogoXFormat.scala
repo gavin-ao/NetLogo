@@ -16,7 +16,7 @@ import
 import
   org.nlogo.{ core, api },
     core.{ model, I18N, Model, Shape, Widget },
-      model.{ Element, ElementFactory, ShapeXml, Text, WidgetXml },
+      model.{ Element, ElementFactory, LinkShapeXml, Text, VectorShapeXml, WidgetXml },
       Shape.{ LinkShape, VectorShape },
     api.{ FileIO, Version }
 
@@ -126,14 +126,14 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
     val componentName = "org.nlogo.modelsection.linkshapes"
     override def addDefault = ((m: Model) => m.copy(linkShapes = Model.defaultLinkShapes.toSeq))
     def serialize(m: Model): Section = factory.newElement("linkShapes")
-      .withElementList(m.linkShapes.map(s => ShapeXml.write(s, factory)))
+      .withElementList(m.linkShapes.map(s => LinkShapeXml.write(s, factory)))
       .build
     def validationErrors(m: Model): Option[String] = None
     override def deserialize(shapes: Section) = { (m: Model) =>
       shapes.children
         .collect { case e: Element => e }
         .foldLeft(Try(Seq.empty[LinkShape])) {
-          case (Success(acc), e) => ShapeXml.read(e) match {
+          case (Success(acc), e) => LinkShapeXml.read(e) match {
             case Valid(v: LinkShape) => Success(acc :+ v)
             case Valid(_) => Success(acc)
             case Invalid(err) => Failure(new NLogoXFormatException(err.message))
@@ -151,14 +151,14 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
     override def addDefault = _.copy(turtleShapes = Model.defaultShapes)
     def serialize(m: Model): Section =
       factory.newElement("shapes")
-        .withElementList(m.turtleShapes.map(s => ShapeXml.write(s, factory)))
+        .withElementList(m.turtleShapes.map(s => VectorShapeXml.write(s, factory)))
         .build
     def validationErrors(m: Model): Option[String] = None
     override def deserialize(shapes: Section) = { (m: Model) =>
       shapes.children
         .collect { case e: Element => e }
         .foldLeft(Try(Seq.empty[VectorShape])) {
-          case (Success(acc), e) => ShapeXml.read(e) match {
+          case (Success(acc), e) => VectorShapeXml.read(e) match {
             case Valid(v: VectorShape) => Success(acc :+ v)
             case Valid(_) => Success(acc)
             case Invalid(err) =>
@@ -179,7 +179,10 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
       "shapes"     -> "org.nlogo.modelsection.turtleshapes",
       "linkShapes" -> "org.nlogo.modelsection.linkshapes",
       "version"    -> "org.nlogo.modelsection.version",
-      "widgets"    -> "org.nlogo.modelsection.interface")
+      "widgets"    -> "org.nlogo.modelsection.interface",
+      "previewCommands" -> "org.nlogo.modelsection.previewcommands",
+      "experiments"     -> "org.nlogo.modelsection.behaviorspace"
+      )
 
   def sections(location: URI): Try[Map[String,Section]] =
     Try {
@@ -227,16 +230,30 @@ class NLogoXFormat(factory: ElementFactory) extends ModelFormat[NLogoXFormat.Sec
       rootElem <- tryRootElem
       writer <- tryWriter
     } yield {
+      XML.write(writer, rootElem, "UTF-8", true, null)
+      writer.write("\n")
+      writer.flush()
+      writer.close()
+      location
+    }
+    // this doesn't work right now, see https://github.com/scala/scala-xml/issues/76
+    /*
+    for {
+      rootElem <- tryRootElem
+      writer <- tryWriter
+    } yield {
       val prettyPrinter = new PrettyPrinter(1000, 2)
       val xmlText = prettyPrinter.format(rootElem)
       writer.write("""<?xml version="1.0"?>""")
       writer.write("\n")
+      println(xmlText)
       writer.write(xmlText)
       writer.write("\n")
       writer.flush()
       writer.close()
       location
     }
+    */
   }
 
   private def buildRootElem(sections: Map[String,Section]): Try[Element] = ???

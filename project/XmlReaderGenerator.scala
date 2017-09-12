@@ -11,9 +11,7 @@ object XmlReaderGenerator {
 
   // Big list of TODOs:
   //
-  // * Support default values for attributes
   // * Remove hardcoded per-file imports in favor of additionalImports (in appInfo)
-  // * Determine complex types to parse based on xsd file (and one or two root elements) instead of hardcoding
   // * generalize all sequence readers to use chain readers (doesn't work, not sure why)
   // * The names for methods / helper classes could be improved
   // * The code in this file is poorly organized and needs to be refactored
@@ -41,8 +39,6 @@ object XmlReaderGenerator {
          (sourceManaged in Compile).value,
          "org.nlogo.core.model",
          "Widget",
-         miscNames ++ widgetNames,
-         widgetNames,
          "import org.nlogo.core.{ LogoList, Widget }",
          "org.nlogo.core",
          identity),
@@ -50,12 +46,18 @@ object XmlReaderGenerator {
          autogenRoot.value / "fileformat" / "netlogo.xsd",
          (sourceManaged in Compile).value,
          "org.nlogo.core.model",
-         "Shape",
-         shapeNames,
-         Seq("turtleShape", "linkShape"),
+         "linkShape",
          "",
          "org.nlogo.core",
-         {(s: String) => s"XmlShape.coerce($s)"})
+         {(s: String) => s"XmlShape.coerceLinkShape($s)"}),
+       generator(streams.value.log.info(_),
+         autogenRoot.value / "fileformat" / "netlogo.xsd",
+         (sourceManaged in Compile).value,
+         "org.nlogo.core.model",
+         "turtleShape",
+         "",
+         "org.nlogo.core",
+         {(s: String) => s"XmlShape.coerceVectorShape($s)"})
      )
     }
 
@@ -66,34 +68,81 @@ object XmlReaderGenerator {
             autogenRoot.value / "fileformat" / "netlogo.xsd",
             (sourceManaged in Compile).value,
             "org.nlogo.fileformat",
-            "LabProtocol",
-            Seq("enumeratedValueSet", "experiment", "logoList", "metrics", "steppedValueSet", "valueSets"),
-            Seq("experiment"),
-            "import org.nlogo.core.{ LogoList, model},\n  model.{ Element, ElementFactory, InvalidElement, ParseError, UnknownWidgetType, XmlReader }\nimport org.nlogo.api.RefValueSet",
+            "experiment",
+            "import org.nlogo.core.{ LogoList, model},\n  model.{ Element, ElementFactory, InvalidElement, ParseError, UnknownElementType, XmlReader }\nimport org.nlogo.api.RefValueSet",
             "org.nlogo.api",
             identity),
           generator(streams.value.log.info(_),
             autogenRoot.value / "fileformat" / "netlogo.xsd",
             (sourceManaged in Compile).value,
             "org.nlogo.fileformat",
-            "ModelSettings",
-            Seq("modelSettings"),
-            Seq("modelSettings"),
-            "import org.nlogo.core.model.{ Element, ElementFactory, InvalidElement, ParseError, UnknownWidgetType, XmlReader }",
+            "modelSettings",
+            "import org.nlogo.core.model.{ Element, ElementFactory, InvalidElement, ParseError, UnknownElementType, XmlReader }",
+            "org.nlogo.api",
+            identity),
+          generator(streams.value.log.info(_),
+            autogenRoot.value / "fileformat" / "netlogo.xsd",
+            (sourceManaged in Compile).value,
+            "org.nlogo.fileformat",
+            "previewCommands",
+            "import org.nlogo.core.model.{ Element, ElementFactory, InvalidElement, ParseError, UnknownElementType, XmlReader }",
             "org.nlogo.api",
             identity)
           )
       }
 
-    val shapeNames = Seq("circle", "elements", "line", "linkLine", "linkShape", "polygon", "rect", "turtleShape")
-    val miscNames = Seq("choices", "chooseable", "dimensions", "logoList", "listContents", "numericData", "pen", "stringData")
-    val widgetNames = Seq("button", "chooser", "numericInput", "monitor", "output", "plot", "slider", "switch", "textbox", "view", "stringInput")
+    def generator(
+      log:               String => Unit,
+      source:            File,
+      dir:               File,
+      ppackage:          String,
+      definingType:      String,
+      additionalImports: String,
+      importBase:        String,
+      coerceWrite:       String => String): File = {
 
-    def generator(log: String => Unit, source: File, dir: File, ppackage: String, baseType: String, elems: Seq[String], topTypes: Seq[String], additionalImports: String, importBase: String, coerceWrite: String => String): File = {
+      val allComplexTypes = parseFile(source)
+
+      val namedTopTypes: Seq[(String, String)] =
+        allComplexTypes.get(definingType)
+          .flatMap { ct =>
+            ct.content.elements match {
+              case Choice(elems, _, _, _) => Some(elems.collect {
+                case SpecifiedElement(name, _, _, DataType.DeferredType(tName), _, _, _) =>
+                  (name -> tName)
+                case ElementReference(tName, _, _, _, _) =>
+                  (tName -> tName)
+              }.toSeq)
+                case _ => Some(Seq(definingType -> definingType))
+            }
+          }.getOrElse(throw new Exception(s"Invalid root element $definingType"))
+
+      val baseType = allComplexTypes(definingType).klassName
+
+      val topTypes = namedTopTypes.map(_._2)
+
+      def elemsRequiringReaders(acc: Set[String], toVisit: Seq[String]): Set[String] = {
+        if (toVisit.isEmpty) acc
+        else if (acc.contains(toVisit.head)) elemsRequiringReaders(acc, toVisit.tail)
+        else {
+          val visiting = toVisit.head
+          val newToVisit =
+            allComplexTypes(visiting).content.elements.typesReferenced.filterNot(tName => acc.contains(tName)) - visiting
+          elemsRequiringReaders(acc + visiting, toVisit ++ newToVisit)
+        }
+      }
+
+      val elementsRequiringReaders = elemsRequiringReaders(Set.empty[String], topTypes)
+
+      val complexTypeSpecs =
+        allComplexTypes
+          .filter(t => elementsRequiringReaders.contains(t._1))
+          .map(_._2)
+          .map(ct => ct.copy(isTopType = topTypes.contains(ct.name)))
+          .toSeq
+
       val file = ppackage.split('.').foldLeft(dir)(_ / _) / s"${baseType}Xml.scala"
       log("creating: " + file)
-
-      val complexTypeSpecs = parseFile(source, elems, topTypes)
 
       val codeString = new StringBuilder()
       def append(s: String) = codeString.append(s + "\n")
@@ -137,19 +186,23 @@ object XmlReaderGenerator {
 
       complexTypeSpecs.map(generateComplexTypeReader(typesMap)).foreach(append)
       append("  val readers = Map[String, Reader](")
-      append(complexTypeSpecs.filter(_.isTopType).map(s => s"""    "${s.name}" -> new ${s.name.capitalize}Reader()""").mkString(",\n"))
+      append(namedTopTypes
+        .map { case (name, tpe) => s"""    "${name}" -> new ${tpe.name.capitalize}Reader("${name}")"""}
+        .mkString(",\n"))
       append("  )")
 
       append(s"  def read(xml: Element): Validated[ParseError, ${baseType}] = {")
       append("    readers.get(xml.tag).map(_.read(xml))")
-      append("     .getOrElse(Invalid(UnknownWidgetType(Seq(xml.tag))))")
+      append("     .getOrElse(Invalid(UnknownElementType(Seq(xml.tag))))")
       append("  }")
 
       append("")
 
       complexTypeSpecs.map(generateComplexTypeWriter(typesMap)).foreach(append)
       append(s"  def write(${baseType.toLowerCase}: ${baseType}, factory: ElementFactory): Element = {")
-      matchCase(coerceWrite(baseType.toLowerCase), generateComplexTypeWriteMatches(complexTypeSpecs), indentLevel = 4).foreach(append)
+      matchCase(coerceWrite(baseType.toLowerCase),
+        generateComplexTypeWriteMatches(complexTypeSpecs, namedTopTypes),
+        indentLevel = 4).foreach(append)
       append("  }")
 
       append("}")
@@ -175,9 +228,21 @@ object XmlReaderGenerator {
       def importNames = content.importNames
       def klassName = content.klassName
       def constructorName = content.constructorName
+      def typeName = content.typeName
+
+      def constructor: String = content.constructorName
     }
 
-    case class ComplexTypeContent(attributes: Seq[SpecifiedAttribute], elements: ComplexTypeElements, klassName: String, isPassThrough: Boolean, constructorName: String, importNames: Seq[String] = Seq())
+    case class ComplexTypeContent(
+      attributes: Seq[SpecifiedAttribute],
+      elements: ComplexTypeElements,
+      klassName: String,
+      isPassThrough: Boolean,
+      constructorName: String,
+      singletonClass: Boolean,
+      importNames: Seq[String] = Seq()) {
+        def typeName: String = if (singletonClass) s"${klassName}.type" else klassName
+      }
 
     sealed trait DataType {
       def attributeReaderName: Option[String]
@@ -292,7 +357,9 @@ object XmlReaderGenerator {
       case class Enum(options: Seq[(String, String)]) extends Restriction
     }
 
-    sealed trait SequenceChild
+    sealed trait SequenceChild {
+      def typesReferenced: Set[String]
+    }
 
     // Element definitions
     sealed trait ElementDefinition extends SequenceChild {
@@ -300,6 +367,7 @@ object XmlReaderGenerator {
       def max: Option[Int]
       def isOptional: Boolean
       def default: Option[String]
+      def typesReferenced: Set[String]
       def resolved(implicit types: Map[String, ComplexType]): SpecifiedElement = {
         this match {
           case s: SpecifiedElement => s
@@ -327,24 +395,38 @@ object XmlReaderGenerator {
             case DataType.DeferredType(t) => types.get(name).map(_.content)
             case _ => None
           }
+        def typesReferenced =
+          tpe match {
+            case DataType.DeferredType(tName) => Set(tName)
+            case DataType.NestedComplexType(content) => content.elements.typesReferenced
+            case _ => Set.empty[String]
+          }
       }
     case class ElementReference(refName: String, fieldName: Option[String], min: Int, max: Option[Int], default: Option[String]) extends ElementDefinition {
       def isOptional = min == 0 && max == Some(1)
+      def typesReferenced = Set(refName)
     }
 
     // Complex types contain one of all, choice, sequence, or simpleContent
     sealed trait ComplexTypeElements {
       def elements: Seq[ElementDefinition]
       def representsSequence: Boolean = false
+      def typesReferenced: Set[String] = elements.flatMap(_.typesReferenced).toSet
     }
     case class All(elements: Seq[ElementDefinition]) extends ComplexTypeElements
-    case class Choice(elements: Seq[ElementDefinition], fieldName: String, klassName: Option[String], isPassThrough: Boolean = false) extends ComplexTypeElements with SequenceChild
+    case class Choice(elements: Seq[ElementDefinition], fieldName: String, klassName: Option[String], isPassThrough: Boolean = false) extends ComplexTypeElements with SequenceChild {
+      def constructor(s: String): String =
+        if (klassName.exists(_ == "AnyRef") || isPassThrough) s
+        else                                                 s"${klassName.get}($s)"
+    }
+
     case class Sequence(children: Seq[SequenceChild], fieldName: Option[String], variadic: Boolean) extends ComplexTypeElements {
       def elements =
         children.collect {
           case elem: ElementDefinition => elem
         }
       override def representsSequence = children.length == 1
+      override def typesReferenced: Set[String] = children.flatMap(_.typesReferenced).toSet
     }
     case class SimpleContent(baseType: DataType, fieldName: String) extends ComplexTypeElements {
       def elements = Seq()
@@ -439,6 +521,7 @@ object XmlReaderGenerator {
           }).mkString(", ")
 
         if (assignments.isEmpty && complexType.content.isPassThrough) Seq(s"null // ${complexType.toString}")
+        else if (assignments.isEmpty && complexType.content.singletonClass) Seq(s"Valid(${complexType.content.klassName})")
         else if (assignments.isEmpty) Seq("null")
         else if (complexType.content.isPassThrough) Seq((" " * (methodIndentLevel + 2)) + assignments.head.readExpression)
         else {
@@ -505,15 +588,15 @@ object XmlReaderGenerator {
       val name = s"""val name: String = "${complexType.name}""""
       val base =
         if (complexType.isTopType) "Reader"
-        else s"XmlReader[Element, ${complexType.klassName}]"
+        else s"XmlReader[Element, ${complexType.typeName}]"
 
       val widgetName = complexType.name.capitalize
 
       def buildReader: String =
         s"""|  class ${widgetName}Reader(${name}) extends ${base} {
             |    type ReadValidation = ({ type l[A] = Validated[ParseError, A] })
-            |    def read(xml: Element): Validated[ParseError, ${complexType.klassName}] = {
-            |      // println(xml)
+            |    def read(xml: Element): Validated[ParseError, ${complexType.typeName}] = {
+            |    //  println(xml)
             |${declStrings.mkString("\n")}
             |${assignmentStrings.mkString("\n")}
             |    }
@@ -524,7 +607,7 @@ object XmlReaderGenerator {
       val widgetName = complexType.name.capitalize
       val elementName = complexType.name
       val base =
-        if (complexType.isTopType) s"extends Writer[${complexType.klassName}] "
+        if (complexType.isTopType) s"extends Writer[${complexType.typeName}] "
         else s""
 
       var additionalWriters = Seq.empty[WriterGenerator]
@@ -535,7 +618,7 @@ object XmlReaderGenerator {
       def buildWriter: String =
         s"""|  class ${widgetName}Writer(val name: String = ${elementName.quoted}) ${base}{
             |${coercionStrings.mkString("\n")}
-            |    def write(w: ${complexType.klassName}, factory: ElementFactory): Element = {
+            |    def write(w: ${complexType.typeName}, factory: ElementFactory): Element = {
             |${declStrings.mkString("\n")}
             |${writerStrings.mkString("\n")}
             |    }
@@ -550,6 +633,7 @@ object XmlReaderGenerator {
 
     def matchCaseString(t: (String, String, String)): String =
       t match {
+        case ("", tpeName, exp) => s"case $tpeName => $exp" // case objects
         case (v, tpeName, exp) => s"case $v: $tpeName => $exp"
       }
 
@@ -619,11 +703,8 @@ object XmlReaderGenerator {
     // returns name of choice reader
     def declareChoiceReader(c: Choice, name: String)(implicit types: Map[String, ComplexType], generator: ReaderGenerator): String = {
       val subReaderDecls = c.elements.map(declareRequiredElementReader)
-      val convert =
-        if (c.klassName.exists(_ == "AnyRef") || c.isPassThrough) ""
-        else                                                     s".map(${c.klassName.get}(_))"
       generator.declare(s"${name}ChoiceReader",
-        s"""XmlReader.choiceElementReader(Seq(${subReaderDecls.mkString(", ")}))${convert}""")
+        s"""XmlReader.choiceElementReader(Seq(${subReaderDecls.mkString(", ")})).map(e => ${c.constructor("e")})""")
       s"${name}ChoiceReader"
     }
 
@@ -781,7 +862,12 @@ object XmlReaderGenerator {
       val matchCases = c.elements.map { elem =>
         val resolvedElem = elem.resolved
         val className = resolvedElem.tpe.resolvedType
-        (resolvedElem.name, className, specifiedElementWriter(resolvedElem.name)(elem).renderValue)
+        resolvedElem.tpe match {
+          case DataType.DeferredType(tName) if types(tName).content.singletonClass =>
+            ("", className, specifiedElementWriter(className)(elem).renderValue)
+          case _ =>
+            (resolvedElem.name, className, specifiedElementWriter(resolvedElem.name)(elem).renderValue)
+        }
       }
       val matchAccessor = if (c.isPassThrough) "v" else s"v.${c.fieldName}"
       generator.coerce(s"${c.fieldName}ToElem",
@@ -817,7 +903,7 @@ object XmlReaderGenerator {
         case DataType.Boxed(DataType.Double | DataType.Boolean) =>
           exp.applyTo((s: String) => s"${s}.toString").applyTo(generateAndAddElement(_), ElementType)
         case DataType.DeferredType(tName)        =>
-          exp.applyTo(writeType(tName, types(tName).klassName), ElementType)
+          exp.applyTo(writeType(tName, types(tName).typeName), ElementType)
         case DataType.NestedComplexType(content) =>
           val subTypeGenerator = new WriterGenerator(ComplexType(s"${name}", false, content), generator.methodIndentLevel)
           generator.withAdditionalWriter(subTypeGenerator)
@@ -867,14 +953,19 @@ object XmlReaderGenerator {
       generator.write(expressedValue.applyTo(coerceVariable _, AttributeType), a.name)
     }
 
-    def generateComplexTypeWriteMatches(complexTypeSpecs: Seq[ComplexType])(implicit types: Map[String, ComplexType]): Seq[(String, String, String)] = {
+    def generateComplexTypeWriteMatches(complexTypeSpecs: Seq[ComplexType], namedTopTypes: Seq[(String, String)])(implicit types: Map[String, ComplexType]): Seq[(String, String, String)] = {
+      def name(tpeName: String) =
+        namedTopTypes.find(_._2 == tpeName).map(_._1).getOrElse(tpeName)
       val allWidgets = complexTypeSpecs.filter(_.isTopType)
       val typeGroups = allWidgets.groupBy(_.klassName)
       typeGroups.flatMap {
         case (klassName, cts) =>
           if (cts.length == 1) {
             val ct = cts.head
-            Seq((ct.name, ct.klassName, s"new ${ct.name.capitalize}Writer().write(${ct.name}, factory)"))
+            // TODO: Special-casing PreviewCommands.Manual is a terrible hack
+            val varName = if (klassName == "PreviewCommands.Manual") "" else ct.name
+            val writtenName = if (klassName == "PreviewCommands.Manual") "PreviewCommands.Manual" else ct.name
+            Seq((varName, ct.klassName, s"new ${ct.name.capitalize}Writer(${name(ct.name).quoted}).write(${writtenName}, factory)"))
           } else {
             val allResolvedElements: Seq[(ComplexType, Seq[SpecifiedElement])] =
               cts.map(ct => (ct, ct.content.elements.elements.map(_.resolved)))
@@ -894,7 +985,12 @@ object XmlReaderGenerator {
             val differingElementSubcases =
               differingElement.map {
                 case (el, ct) =>
-                  (el.name, el.tpe.resolvedType, s"new ${ct.name.capitalize}Writer().write(${klassName.toLowerCase}, factory)")
+                  el.tpe match {
+                    case DataType.DeferredType(tName) if (types(tName).content.singletonClass) =>
+                      ("", el.tpe.resolvedType, s"new ${ct.name.capitalize}Writer(${name(ct.name).quoted}).write(${klassName.toLowerCase}, factory)")
+                    case _ =>
+                      (el.name, el.tpe.resolvedType, s"new ${ct.name.capitalize}Writer(${name(ct.name).quoted}).write(${klassName.toLowerCase}, factory)")
+                  }
               }
 
             Seq((klassName.toLowerCase, klassName,
@@ -910,17 +1006,16 @@ object XmlReaderGenerator {
       generator.buildReader
     }
 
-  def parseFile(source: File, elems: Seq[String], topTypes: Seq[String]): Seq[ComplexType] = {
+  def parseFile(source: File): Map[String, ComplexType] = {
     val root = XML.loadFile(source)
     val allAttributeGroups = root.child.collect {
       case e@Elem("xsd", "attributeGroup", _, _, _*) => parseAttributeGroup(e.asInstanceOf[Elem])
     }
     val attributeGroupMap = allAttributeGroups.map(g => g.name -> g).toMap
-    val allWidgets = root.child.collect {
-      case e@Elem("xsd", "complexType", Attribute("name", xml.Text(t), _), _, _*) if elems.contains(t) =>
-        parseComplexType(e.asInstanceOf[Elem], attributeGroupMap, topTypes)
-    }
-    allWidgets
+    root.child.collect {
+      case e@Elem("xsd", "complexType", Attribute("name", xml.Text(t), _), _, _*) => t ->
+      parseComplexType(e.asInstanceOf[Elem], attributeGroupMap, false)
+    }.toMap
   }
 
   def parseAttributeGroup(attributeGroupSpec: Elem): AttributeGroup = {
@@ -993,7 +1088,7 @@ object XmlReaderGenerator {
   def parseSimpleContent(simpleContentElem: Node): Option[(ComplexTypeElements, Seq[SpecifiedAttribute])] = {
     val base = (simpleContentElem \ "extension" \ "@base").headOption.map(_.text).map(DataType.fromName)
     val fieldName =
-      (simpleContentElem \ "extension").appInfo("fieldName").getOrElse("value")
+      simpleContentElem.appInfo("fieldName").getOrElse("value")
     val attributes = (simpleContentElem \ "extension" \ "attribute")
       .map(e => parseSpecifiedAttribute(e.asInstanceOf[Elem]))
     base.map(b => (SimpleContent(b, fieldName), attributes))
@@ -1005,8 +1100,7 @@ object XmlReaderGenerator {
 
   def parseChoice(choiceElem: Node): Choice = {
     val choiceElements = choiceElem.flatMap(parseElement)
-    val fieldName = choiceElem.appInfo("fieldName")
-      .getOrElse(throw new Exception("Invalid choice specification: " + choiceElem + " should include a fieldName"))
+    val fieldName = choiceElem.appInfo("fieldName").getOrElse("value")
     val klassName = choiceElem.appInfo("className")
     val passThrough = choiceElem.appInfo("passThrough").map(_.toBoolean).getOrElse(false)
     Choice(choiceElements, fieldName, klassName, passThrough)
@@ -1025,9 +1119,8 @@ object XmlReaderGenerator {
     Sequence(parseSequenceChildren(seqElem), fieldName, variadic)
   }
 
-  def parseComplexType(ctElement: Node, sharedSpecs: Map[String, AttributeGroup], topTypes: Seq[String]): ComplexType = {
+  def parseComplexType(ctElement: Node, sharedSpecs: Map[String, AttributeGroup], isTopType: Boolean): ComplexType = {
     val name = ctElement.attributes("name").text
-    val isTopType = topTypes.contains(name)
     ComplexType(name, isTopType, parseComplexTypeContent(ctElement, sharedSpecs))
   }
 
@@ -1041,10 +1134,11 @@ object XmlReaderGenerator {
     val isPassThrough = ctElement.appInfo("passThrough").map(_.toBoolean).getOrElse(false)
     val simpleContent = (ctElement \ "simpleContent").headOption.flatMap(parseSimpleContent)
     val imports = if (importKlassName && !isPassThrough) additionalImports :+ klassName else additionalImports
+    val isSingleton = ctElement.appInfo("singletonClass").map(_.toBoolean).getOrElse(false)
     if (simpleContent.isDefined) {
       (simpleContent.map {
         case (elems, attrs) =>
-          ComplexTypeContent(attrs, elems, klassName, isPassThrough, constructorName, imports)
+          ComplexTypeContent(attrs, elems, klassName, isPassThrough, constructorName, isSingleton, imports)
       }).get
     } else {
       val allAttributes =
@@ -1059,7 +1153,7 @@ object XmlReaderGenerator {
       val choiceElement = (ctElement \ "choice").headOption.map(parseChoice)
       val sequenceElement = (ctElement \ "sequence").headOption.map(parseSequence)
       val elements = choiceElement orElse sequenceElement getOrElse All(allElements)
-      ComplexTypeContent(allAttributes, elements, klassName, isPassThrough, constructorName, imports)
+      ComplexTypeContent(allAttributes, elements, klassName, isPassThrough, constructorName, isSingleton, imports)
     }
   }
 }

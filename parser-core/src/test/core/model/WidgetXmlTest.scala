@@ -295,8 +295,9 @@ class WidgetXmlTest extends FunSuite {
         namedText("stringChoice", "abc"),
         namedText("booleanChoice", "true"),
         Elem("listChoice", Seq(),
-          Seq(namedText("booleanChoice", "true"), namedText("stringChoice", "def")))))))
+          Seq(namedText("boolean", "true"), namedText("string", "def")))))))
 
+    println(readToError(xml))
     assertResult(Chooser(Some("foo"), 150, 200, 250, 300, Some("foo"),
       List(
         ChooseableDouble(Double.box(0.0)),
@@ -316,7 +317,7 @@ class WidgetXmlTest extends FunSuite {
         namedText("stringChoice", "abc"),
         namedText("booleanChoice", "true"),
         Elem("listChoice", Seq(),
-          Seq(namedText("booleanChoice", "true"), namedText("stringChoice", "def")))))))
+          Seq(namedText("boolean", "true"), namedText("string", "def")))))))
 
     val chooser = Chooser(Some("foo"), 150, 200, 250, 300, Some("foo"),
       List(
@@ -498,6 +499,6 @@ class WidgetXmlTest extends FunSuite {
   test("returns an invalid widget parse when the widget type is unknown") {
     val xml = Elem("thingamajig", Seq(), Seq())
     assert(WidgetXml.read(xml).isInvalid)
-    assertResult(UnknownWidgetType(Seq("thingamajig")))(readToError(xml))
+    assertResult(UnknownElementType(Seq("thingamajig")))(readToError(xml))
   }
 }

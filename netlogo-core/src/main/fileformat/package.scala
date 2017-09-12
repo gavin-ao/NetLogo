@@ -40,12 +40,16 @@ package object fileformat {
       .addFormat[NLogoXFormat.Section, NLogoXFormat](new NLogoXFormat(ScalaXmlElementFactory))
       .addSerializer[NLogoXFormat.Section, NLogoXFormat](new NLogoXLabFormat(ScalaXmlElementFactory))
       .addSerializer[NLogoXFormat.Section, NLogoXFormat](new NLogoXModelSettings(ScalaXmlElementFactory))
+      .addSerializer[NLogoXFormat.Section, NLogoXFormat](new NLogoXPreviewCommandsFormat(ScalaXmlElementFactory))
       .addFormat[Array[String], NLogoFormat](new NLogoFormat)
       .addSerializer[Array[String], NLogoFormat](NLogoModelSettings)
 
   def standardLoader(literalParser: LiteralParser) = {
     new ConfigurableModelLoader()
       .addFormat[NLogoXFormat.Section, NLogoXFormat](new NLogoXFormat(ScalaXmlElementFactory))
+      .addSerializer[NLogoXFormat.Section, NLogoXFormat](new NLogoXLabFormat(ScalaXmlElementFactory))
+      .addSerializer[NLogoXFormat.Section, NLogoXFormat](new NLogoXModelSettings(ScalaXmlElementFactory))
+      .addSerializer[NLogoXFormat.Section, NLogoXFormat](new NLogoXPreviewCommandsFormat(ScalaXmlElementFactory))
       .addFormat[Array[String], NLogoFormat](new NLogoFormat)
       .addSerializer[Array[String], NLogoFormat](NLogoModelSettings)
       .addSerializer[Array[String], NLogoFormat](new NLogoHubNetFormat(literalParser))
